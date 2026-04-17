@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NovelToon</string>
+
+    <!-- Tabs -->
+    <string name="tab_novel">小说</string>
+    <string name="tab_comic">漫画</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Common -->
+    <string name="search">搜索</string>
+    <string name="add">添加</string>
+    <string name="delete">删除</string>
+    <string name="cancel">取消</string>
+    <string name="confirm">确定</string>
+    <string name="ok">好的</string>
+    <string name="delete_confirm">确定要删除吗？</string>
+
+    <!-- Novel Bookshelf -->
+    <string name="empty_bookshelf">书架空空如也</string>
+    <string name="search_novel">搜索小说</string>
+    <string name="search_hint_novel">输入书名搜索</string>
+    <string name="import_local_file">导入本地文件</string>
+    <string name="manage_sources">管理书源</string>
+    <string name="mark_completed">标记完结</string>
+    <string name="mark_reading">标记在读</string>
+
+    <!-- Novel Reader -->
+    <string name="prev_chapter">上一章</string>
+    <string name="next_chapter">下一章</string>
+    <string name="chapter_list">目录</string>
+    <string name="reader_settings">阅读设置</string>
+    <string name="font_size">字体大小</string>
+    <string name="line_spacing">行间距</string>
+    <string name="page_margin">页边距</string>
+    <string name="background_color">背景颜色</string>
+    <string name="bg_white">白色</string>
+    <string name="bg_parchment">羊皮纸</string>
+    <string name="bg_gray">灰色</string>
+    <string name="bg_black">纯黑</string>
+    <string name="bg_green">护眼</string>
+
+    <!-- Comic Bookshelf -->
+    <string name="empty_comic_shelf">漫画架空空如也</string>
+    <string name="search_comic">搜索漫画</string>
+    <string name="search_hint_comic">输入漫画名搜索</string>
+    <string name="import_local_comic">导入本地漫画</string>
+    <string name="no_images">暂无图片</string>
+
+    <!-- Source Management -->
+    <string name="manage_book_sources">书源管理</string>
+    <string name="manage_comic_sources">图源管理</string>
+    <string name="import_source">导入源</string>
+    <string name="no_sources">暂无源，请添加</string>
+    <string name="paste_json">粘贴JSON规则</string>
+    <string name="import_action">导入</string>
+
+    <!-- Settings -->
+    <string name="settings_display">显示</string>
+    <string name="settings_network">网络</string>
+    <string name="settings_storage">存储</string>
+    <string name="settings_backup">备份与恢复</string>
+    <string name="theme_mode">主题模式</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="wifi_only_original">仅Wi-Fi加载原图</string>
+    <string name="wifi_only_desc">移动网络下加载缩略图</string>
+    <string name="image_cache">图片缓存</string>
+    <string name="auto_clear_cache">自动清理缓存</string>
+    <string name="auto_clear_days">自动清理%d天前的缓存</string>
+    <string name="auto_clear_off">关闭</string>
+    <string name="clear_cache">清除缓存</string>
+    <string name="clear_cache_confirm">确定要清除所有缓存吗？</string>
+    <string name="cache_cleared">缓存已清除</string>
+    <string name="export_backup">导出备份</string>
+    <string name="export_desc">导出书架和阅读进度到本地</string>
+    <string name="import_backup">恢复备份</string>
+    <string name="import_desc">从本地文件恢复</string>
+    <string name="backup_success">备份成功</string>
+    <string name="backup_failed">备份失败</string>
+    <string name="restore_success">恢复成功</string>
+    <string name="restore_failed">恢复失败</string>
+    <string name="about">关于</string>
+    <string name="about_personal_use">个人使用版本</string>
+    <string name="about_version">版本 %s</string>
+    <string name="about_disclaimer">仅供个人使用，无联网商用行为。所有内容来自本地文件或手动输入的网络地址。</string>
+</resources>

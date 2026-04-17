@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NovelToon</string>
+
+    <string name="tab_novel">Novels</string>
+    <string name="tab_comic">Comics</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="search">Search</string>
+    <string name="add">Add</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="confirm">Confirm</string>
+    <string name="ok">OK</string>
+    <string name="delete_confirm">Are you sure you want to delete?</string>
+
+    <string name="empty_bookshelf">Bookshelf is empty</string>
+    <string name="search_novel">Search Novel</string>
+    <string name="search_hint_novel">Enter book title to search</string>
+    <string name="import_local_file">Import Local File</string>
+    <string name="manage_sources">Manage Sources</string>
+    <string name="mark_completed">Mark Completed</string>
+    <string name="mark_reading">Mark Reading</string>
+
+    <string name="prev_chapter">Previous Chapter</string>
+    <string name="next_chapter">Next Chapter</string>
+    <string name="chapter_list">Table of Contents</string>
+    <string name="reader_settings">Reader Settings</string>
+    <string name="font_size">Font Size</string>
+    <string name="line_spacing">Line Spacing</string>
+    <string name="page_margin">Page Margin</string>
+    <string name="background_color">Background Color</string>
+    <string name="bg_white">White</string>
+    <string name="bg_parchment">Parchment</string>
+    <string name="bg_gray">Gray</string>
+    <string name="bg_black">Black</string>
+    <string name="bg_green">Green</string>
+
+    <string name="empty_comic_shelf">Comic shelf is empty</string>
+    <string name="search_comic">Search Comic</string>
+    <string name="search_hint_comic">Enter comic name to search</string>
+    <string name="import_local_comic">Import Local Comic</string>
+    <string name="no_images">No images available</string>
+
+    <string name="manage_book_sources">Book Sources</string>
+    <string name="manage_comic_sources">Comic Sources</string>
+    <string name="import_source">Import Source</string>
+    <string name="no_sources">No sources yet, please add</string>
+    <string name="paste_json">Paste JSON rules</string>
+    <string name="import_action">Import</string>
+
+    <string name="settings_display">Display</string>
+    <string name="settings_network">Network</string>
+    <string name="settings_storage">Storage</string>
+    <string name="settings_backup">Backup &amp; Restore</string>
+    <string name="theme_mode">Theme Mode</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">Follow System</string>
+    <string name="wifi_only_original">Wi-Fi Only for Original Images</string>
+    <string name="wifi_only_desc">Load thumbnails on mobile data</string>
+    <string name="image_cache">Image Cache</string>
+    <string name="auto_clear_cache">Auto Clear Cache</string>
+    <string name="auto_clear_days">Auto clear cache older than %d days</string>
+    <string name="auto_clear_off">Off</string>
+    <string name="clear_cache">Clear Cache</string>
+    <string name="clear_cache_confirm">Are you sure you want to clear all cache?</string>
+    <string name="cache_cleared">Cache cleared</string>
+    <string name="export_backup">Export Backup</string>
+    <string name="export_desc">Export bookshelf and reading progress</string>
+    <string name="import_backup">Restore Backup</string>
+    <string name="import_desc">Restore from local file</string>
+    <string name="backup_success">Backup successful</string>
+    <string name="backup_failed">Backup failed</string>
+    <string name="restore_success">Restore successful</string>
+    <string name="restore_failed">Restore failed</string>
+    <string name="about">About</string>
+    <string name="about_personal_use">Personal Use Version</string>
+    <string name="about_version">Version %s</string>
+    <string name="about_disclaimer">For personal use only, no internet connection required, no commercial use. All content from local files or manually entered network addresses.</string>
+</resources>
