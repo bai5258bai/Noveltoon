@@ -77,7 +77,14 @@ class ComicRepository(context: Context) {
         val comic = comicDao.getComicById(comicId) ?: return emptyList()
         val chapters = chapterDao.getChaptersList(comicId)
         val chapter = chapters.getOrNull(chapterIndex) ?: return emptyList()
-        val source = comicSourceDao.getEnabledSources().find { it.name == comic.sourceName } ?: return emptyList()
+
+        // URL-imported comic stores images as newline-separated list in url
+        if (comic.sourceName == "URL Import") {
+            return chapter.url.split("\n").filter { it.isNotBlank() }
+        }
+
+        val source = comicSourceDao.getEnabledSources().find { it.name == comic.sourceName }
+            ?: return emptyList()
         return parser.getComicImages(source, chapter.url)
     }
 
@@ -117,6 +124,7 @@ class ComicRepository(context: Context) {
 
     suspend fun importFromUrl(url: String): Long {
         val images = parser.fetchImagesFromUrl(url)
+        if (images.isEmpty()) return -1
         val title = parser.guessTitleFromUrl(url)
         val comic = Comic(
             title = title,

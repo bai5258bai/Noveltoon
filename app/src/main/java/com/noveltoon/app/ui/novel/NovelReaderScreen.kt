@@ -81,7 +81,7 @@ fun NovelReaderScreen(
     var currentChapterIndex by remember { mutableIntStateOf(0) }
     var currentPageIndex by remember { mutableIntStateOf(0) }
     var totalPagesInChapter by remember { mutableIntStateOf(1) }
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(false) }
     var showChapterList by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showSourceSwitch by remember { mutableStateOf(false) }
@@ -146,6 +146,37 @@ fun NovelReaderScreen(
         } else {
             val chapterTitle = chapters.getOrNull(currentChapterIndex)?.title ?: ""
 
+            val onPageBack: () -> Unit = {
+                if (readingMode == 1) {
+                    if (currentPageIndex > 0) {
+                        currentPageIndex--
+                    } else if (currentChapterIndex > 0) {
+                        currentChapterIndex--
+                        viewModel.loadChapter(novelId, currentChapterIndex)
+                    }
+                } else {
+                    if (currentChapterIndex > 0) {
+                        currentChapterIndex--
+                        viewModel.loadChapter(novelId, currentChapterIndex)
+                    }
+                }
+            }
+            val onPageForward: () -> Unit = {
+                if (readingMode == 1) {
+                    if (currentPageIndex < totalPagesInChapter - 1) {
+                        currentPageIndex++
+                    } else if (currentChapterIndex < chapters.size - 1) {
+                        currentChapterIndex++
+                        viewModel.loadChapter(novelId, currentChapterIndex)
+                    }
+                } else {
+                    if (currentChapterIndex < chapters.size - 1) {
+                        currentChapterIndex++
+                        viewModel.loadChapter(novelId, currentChapterIndex)
+                    }
+                }
+            }
+
             if (readingMode == 0) {
                 ScrollReader(
                     content = content,
@@ -167,8 +198,7 @@ fun NovelReaderScreen(
                             currentChapterIndex++
                             viewModel.loadChapter(novelId, currentChapterIndex)
                         }
-                    },
-                    onTap = { showControls = !showControls }
+                    }
                 )
                 LaunchedEffect(content) {
                     totalPagesInChapter = 1
@@ -189,9 +219,17 @@ fun NovelReaderScreen(
                         currentPageIndex = pageIndex
                         totalPagesInChapter = total
                     },
-                    onTap = { showControls = !showControls }
+                    battery = rememberBatteryLevel().value,
+                    time = rememberCurrentTime().value
                 )
             }
+
+            // Three-zone click overlay: left = back, center = toggle controls, right = forward
+            ThreeZoneTapOverlay(
+                onLeft = onPageBack,
+                onCenter = { showControls = !showControls },
+                onRight = onPageForward
+            )
         }
 
         AnimatedVisibility(
@@ -365,9 +403,6 @@ fun NovelReaderBottomBar(
     onShowSettings: () -> Unit,
     onSeekPage: (Int) -> Unit
 ) {
-    val battery by rememberBatteryLevel()
-    val time by rememberCurrentTime()
-
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 8.dp,
@@ -387,24 +422,15 @@ fun NovelReaderBottomBar(
                     valueRange = 0f..(totalPagesInChapter - 1).coerceAtLeast(1).toFloat(),
                     modifier = Modifier.fillMaxWidth()
                 )
-            } else {
-                Spacer(Modifier.height(20.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 Text(
                     "${currentPageIndex + 1} / ${totalPagesInChapter.coerceAtLeast(1)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
-                Text(
-                    "${battery}%  ·  $time",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            } else {
+                Spacer(Modifier.height(16.dp))
             }
             Spacer(Modifier.height(4.dp))
             Row(
@@ -480,18 +506,12 @@ fun ScrollReader(
     currentChapterIndex: Int,
     totalChapters: Int,
     onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onTap: () -> Unit
+    onNext: () -> Unit
 ) {
     val scrollState = rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onTap
-            )
             .verticalScroll(scrollState)
             .windowInsetsPadding(WindowInsets.systemBars)
             .padding(horizontal = pageMargin.dp, vertical = 16.dp)
@@ -551,19 +571,14 @@ fun PageReader(
     totalChapters: Int,
     targetPage: Int,
     onPageInfoChanged: (Int, Int) -> Unit,
-    onTap: () -> Unit
+    battery: Int,
+    time: String
 ) {
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
 
     BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onTap
-            )
+        modifier = Modifier.fillMaxSize()
     ) {
         val availableWidthPx = with(density) { (maxWidth - (pageMargin * 2).dp).toPx() }
         val availableHeightPx = with(density) { (maxHeight - 80.dp).toPx() }
@@ -620,6 +635,7 @@ fun PageReader(
 
             HorizontalPager(
                 state = pagerState,
+                userScrollEnabled = false,
                 modifier = Modifier.weight(1f)
             ) { pageIndex ->
                 val pageContent = pages.getOrNull(pageIndex) ?: ""
@@ -645,12 +661,57 @@ fun PageReader(
                     color = textColor.copy(alpha = 0.5f)
                 )
                 Text(
+                    "${battery}%  ·  $time",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textColor.copy(alpha = 0.5f)
+                )
+                Text(
                     "${pagerState.currentPage + 1} / ${pages.size.coerceAtLeast(1)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = textColor.copy(alpha = 0.5f)
                 )
             }
         }
+    }
+}
+
+@Composable
+fun ThreeZoneTapOverlay(
+    onLeft: () -> Unit,
+    onCenter: () -> Unit,
+    onRight: () -> Unit
+) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onLeft
+                )
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onCenter
+                )
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onRight
+                )
+        )
     }
 }
 

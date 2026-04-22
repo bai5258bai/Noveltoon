@@ -32,13 +32,17 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importJson by remember { mutableStateOf("") }
+    var importing by remember { mutableStateOf(false) }
+    var snackbarText by remember { mutableStateOf("") }
 
     SourceManageScaffold(
         title = stringResource(R.string.manage_book_sources),
         onNavigateBack = onNavigateBack,
         onAdd = { showImportDialog = true },
-        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled) },
+        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn) },
         selectedIds = selectedIds,
+        snackbarText = snackbarText,
+        onSnackbarDismiss = { snackbarText = "" },
         onToggleSelect = { id ->
             selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
         },
@@ -47,15 +51,17 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
                 scope.launch { repo.updateBookSource(it.copy(enabled = enabled)) }
             }
         },
-        onSelectAll = { selectedIds = sources.map { it.id }.toSet() },
+        onSelectAll = { selectedIds = sources.filter { !it.isBuiltIn }.map { it.id }.toSet() },
         onInvertSelect = {
-            val all = sources.map { it.id }.toSet()
+            val all = sources.filter { !it.isBuiltIn }.map { it.id }.toSet()
             selectedIds = all - selectedIds
         },
         onDeleteSelected = {
             scope.launch {
-                sources.filter { it.id in selectedIds }.forEach { repo.deleteBookSource(it) }
+                val toDelete = sources.filter { it.id in selectedIds && !it.isBuiltIn }
+                toDelete.forEach { repo.deleteBookSource(it) }
                 selectedIds = emptySet()
+                snackbarText = context.getString(R.string.deleted_count, toDelete.size)
             }
         }
     )
@@ -63,16 +69,25 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
     if (showImportDialog) {
         ImportSourceJsonDialog(
             onDismiss = {
-                showImportDialog = false
-                importJson = ""
+                if (!importing) {
+                    showImportDialog = false
+                    importJson = ""
+                }
             },
             json = importJson,
             onJsonChange = { importJson = it },
+            importing = importing,
             onImport = {
                 scope.launch {
-                    repo.importBookSources(importJson)
-                    importJson = ""
+                    importing = true
+                    val added = repo.importBookSourcesFromText(importJson)
+                    importing = false
                     showImportDialog = false
+                    importJson = ""
+                    snackbarText = if (added > 0)
+                        context.getString(R.string.import_success, added)
+                    else
+                        context.getString(R.string.import_failed)
                 }
             }
         )
@@ -89,13 +104,17 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
     var selectedIds by remember { mutableStateOf(setOf<Long>()) }
     var showImportDialog by remember { mutableStateOf(false) }
     var importJson by remember { mutableStateOf("") }
+    var importing by remember { mutableStateOf(false) }
+    var snackbarText by remember { mutableStateOf("") }
 
     SourceManageScaffold(
         title = stringResource(R.string.manage_comic_sources),
         onNavigateBack = onNavigateBack,
         onAdd = { showImportDialog = true },
-        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled) },
+        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn) },
         selectedIds = selectedIds,
+        snackbarText = snackbarText,
+        onSnackbarDismiss = { snackbarText = "" },
         onToggleSelect = { id ->
             selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
         },
@@ -104,15 +123,17 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
                 scope.launch { repo.updateComicSource(it.copy(enabled = enabled)) }
             }
         },
-        onSelectAll = { selectedIds = sources.map { it.id }.toSet() },
+        onSelectAll = { selectedIds = sources.filter { !it.isBuiltIn }.map { it.id }.toSet() },
         onInvertSelect = {
-            val all = sources.map { it.id }.toSet()
+            val all = sources.filter { !it.isBuiltIn }.map { it.id }.toSet()
             selectedIds = all - selectedIds
         },
         onDeleteSelected = {
             scope.launch {
-                sources.filter { it.id in selectedIds }.forEach { repo.deleteComicSource(it) }
+                val toDelete = sources.filter { it.id in selectedIds && !it.isBuiltIn }
+                toDelete.forEach { repo.deleteComicSource(it) }
                 selectedIds = emptySet()
+                snackbarText = context.getString(R.string.deleted_count, toDelete.size)
             }
         }
     )
@@ -120,16 +141,25 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
     if (showImportDialog) {
         ImportSourceJsonDialog(
             onDismiss = {
-                showImportDialog = false
-                importJson = ""
+                if (!importing) {
+                    showImportDialog = false
+                    importJson = ""
+                }
             },
             json = importJson,
             onJsonChange = { importJson = it },
+            importing = importing,
             onImport = {
                 scope.launch {
-                    repo.importComicSources(importJson)
-                    importJson = ""
+                    importing = true
+                    val added = repo.importComicSourcesFromText(importJson)
+                    importing = false
                     showImportDialog = false
+                    importJson = ""
+                    snackbarText = if (added > 0)
+                        context.getString(R.string.import_success, added)
+                    else
+                        context.getString(R.string.import_failed)
                 }
             }
         )
@@ -140,7 +170,8 @@ data class SourceListEntry(
     val id: Long,
     val name: String,
     val url: String,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val isBuiltIn: Boolean = false
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,12 +182,15 @@ private fun SourceManageScaffold(
     onAdd: () -> Unit,
     sources: List<SourceListEntry>,
     selectedIds: Set<Long>,
+    snackbarText: String,
+    onSnackbarDismiss: () -> Unit,
     onToggleSelect: (Long) -> Unit,
     onToggleEnabled: (Long, Boolean) -> Unit,
     onSelectAll: () -> Unit,
     onInvertSelect: () -> Unit,
     onDeleteSelected: () -> Unit
 ) {
+    val nonBuiltIn = sources.count { !it.isBuiltIn }
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         topBar = {
@@ -177,11 +211,20 @@ private fun SourceManageScaffold(
         bottomBar = {
             SourceSelectionBottomBar(
                 selectedCount = selectedIds.size,
-                totalCount = sources.size,
+                totalCount = nonBuiltIn,
                 onSelectAll = onSelectAll,
                 onInvertSelect = onInvertSelect,
                 onDelete = onDeleteSelected
             )
+        },
+        snackbarHost = {
+            if (snackbarText.isNotEmpty()) {
+                Snackbar(
+                    action = {
+                        TextButton(onClick = onSnackbarDismiss) { Text(stringResource(R.string.ok)) }
+                    }
+                ) { Text(snackbarText) }
+            }
         }
     ) { padding ->
         if (sources.isEmpty()) {
@@ -203,7 +246,9 @@ private fun SourceManageScaffold(
                     SourceCheckListItem(
                         entry = source,
                         checked = source.id in selectedIds,
-                        onCheckedChange = { onToggleSelect(source.id) },
+                        onCheckedChange = {
+                            if (!source.isBuiltIn) onToggleSelect(source.id)
+                        },
                         onToggleEnabled = { onToggleEnabled(source.id, it) }
                     )
                     HorizontalDivider(thickness = 0.5.dp)
@@ -223,23 +268,39 @@ private fun SourceCheckListItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange() }
+            .clickable(enabled = !entry.isBuiltIn) { onCheckedChange() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(
             checked = checked,
-            onCheckedChange = { onCheckedChange() }
+            onCheckedChange = { if (!entry.isBuiltIn) onCheckedChange() },
+            enabled = !entry.isBuiltIn
         )
         Spacer(Modifier.width(4.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                entry.name,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    entry.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (entry.isBuiltIn) {
+                    Spacer(Modifier.width(6.dp))
+                    AssistChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                stringResource(R.string.builtin_badge),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    )
+                }
+            }
             if (entry.url.isNotBlank()) {
                 Text(
                     entry.url,
@@ -315,27 +376,48 @@ private fun ImportSourceJsonDialog(
     onDismiss: () -> Unit,
     json: String,
     onJsonChange: (String) -> Unit,
+    importing: Boolean,
     onImport: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.import_source)) },
         text = {
-            OutlinedTextField(
-                value = json,
-                onValueChange = onJsonChange,
-                label = { Text(stringResource(R.string.paste_json)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                maxLines = 10
-            )
+            Column {
+                Text(
+                    stringResource(R.string.import_source_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = json,
+                    onValueChange = onJsonChange,
+                    label = { Text(stringResource(R.string.paste_json_or_url)) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    maxLines = 10,
+                    enabled = !importing
+                )
+            }
         },
         confirmButton = {
-            TextButton(onClick = onImport) { Text(stringResource(R.string.import_action)) }
+            TextButton(onClick = onImport, enabled = !importing && json.isNotBlank()) {
+                if (importing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(stringResource(R.string.import_action))
+            }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = onDismiss, enabled = !importing) {
+                Text(stringResource(R.string.cancel))
+            }
         }
     )
 }

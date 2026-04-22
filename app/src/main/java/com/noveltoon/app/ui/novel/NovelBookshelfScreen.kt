@@ -53,12 +53,27 @@ fun NovelBookshelfScreen(
     viewModel: NovelViewModel = viewModel()
 ) {
     val novels by viewModel.novels.collectAsState()
+    val importState by viewModel.importState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var selectedNovel by remember { mutableStateOf<Novel?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showUrlImportDialog by remember { mutableStateOf(false) }
+    var snackbarText by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(importState) {
+        when (importState) {
+            "success" -> {
+                snackbarText = context.getString(R.string.import_url_success)
+                viewModel.clearImportState()
+            }
+            "failed" -> {
+                snackbarText = context.getString(R.string.import_url_failed)
+                viewModel.clearImportState()
+            }
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -81,6 +96,15 @@ fun NovelBookshelfScreen(
         modifier = Modifier.background(gradientBrush),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
+        snackbarHost = {
+            if (snackbarText.isNotEmpty()) {
+                Snackbar(
+                    action = {
+                        TextButton(onClick = { snackbarText = "" }) { Text(stringResource(R.string.ok)) }
+                    }
+                ) { Text(snackbarText) }
+            }
+        },
         topBar = {
             BookshelfTopBar(
                 title = stringResource(R.string.tab_novel),
@@ -115,7 +139,18 @@ fun NovelBookshelfScreen(
                 .background(gradientBrush)
                 .padding(padding)
         ) {
-            if (novels.isEmpty()) {
+            if (importState == "loading") {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(12.dp))
+                        Text(stringResource(R.string.importing))
+                    }
+                }
+            } else if (novels.isEmpty()) {
                 NovelEmptyState(onSearch = onNavigateToSearch)
             } else {
                 LazyColumn(

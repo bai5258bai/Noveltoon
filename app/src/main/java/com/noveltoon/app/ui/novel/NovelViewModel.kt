@@ -112,12 +112,23 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _importState = MutableStateFlow<String?>(null)
+    val importState: StateFlow<String?> = _importState.asStateFlow()
+
     fun importFromUrl(url: String) {
         viewModelScope.launch {
+            _importState.value = "loading"
             try {
-                repository.importFromUrl(url)
-            } catch (_: Exception) {}
+                val id = repository.importFromUrl(url)
+                _importState.value = if (id > 0) "success" else "failed"
+            } catch (e: Exception) {
+                _importState.value = "failed"
+            }
         }
+    }
+
+    fun clearImportState() {
+        _importState.value = null
     }
 
     fun addReadingTime(id: Long, ms: Long) {

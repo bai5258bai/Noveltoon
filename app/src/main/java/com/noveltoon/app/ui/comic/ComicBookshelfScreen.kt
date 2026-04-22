@@ -50,12 +50,27 @@ fun ComicBookshelfScreen(
     viewModel: ComicViewModel = viewModel()
 ) {
     val comics by viewModel.comics.collectAsState()
+    val importState by viewModel.importState.collectAsState()
     var showMenu by remember { mutableStateOf(false) }
     var selectedComic by remember { mutableStateOf<Comic?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showUrlImportDialog by remember { mutableStateOf(false) }
+    var snackbarText by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(importState) {
+        when (importState) {
+            "success" -> {
+                snackbarText = context.getString(R.string.import_url_success)
+                viewModel.clearImportState()
+            }
+            "failed" -> {
+                snackbarText = context.getString(R.string.import_url_failed)
+                viewModel.clearImportState()
+            }
+        }
+    }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -78,6 +93,15 @@ fun ComicBookshelfScreen(
         modifier = Modifier.background(gradientBrush),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
+        snackbarHost = {
+            if (snackbarText.isNotEmpty()) {
+                Snackbar(
+                    action = {
+                        TextButton(onClick = { snackbarText = "" }) { Text(stringResource(R.string.ok)) }
+                    }
+                ) { Text(snackbarText) }
+            }
+        },
         topBar = {
             BookshelfTopBar(
                 title = stringResource(R.string.tab_comic),
@@ -112,7 +136,18 @@ fun ComicBookshelfScreen(
                 .background(gradientBrush)
                 .padding(padding)
         ) {
-            if (comics.isEmpty()) {
+            if (importState == "loading") {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(12.dp))
+                        Text(stringResource(R.string.importing))
+                    }
+                }
+            } else if (comics.isEmpty()) {
                 ComicEmptyState(onSearch = onNavigateToSearch)
             } else {
                 LazyColumn(

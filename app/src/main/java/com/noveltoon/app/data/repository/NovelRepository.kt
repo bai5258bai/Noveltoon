@@ -137,6 +137,7 @@ class NovelRepository(context: Context) {
 
     suspend fun importFromUrl(url: String): Long {
         val fetched = parser.fetchTextFromUrl(url)
+        if (fetched.isBlank()) return -1
         val title = parser.guessTitleFromUrl(url)
         val novel = Novel(
             title = title,

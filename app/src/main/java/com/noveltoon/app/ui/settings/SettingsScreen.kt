@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import com.noveltoon.app.BuildConfig
 import com.noveltoon.app.R
 import com.noveltoon.app.data.preferences.AppPreferences
+import com.noveltoon.app.ui.sources.BuiltInSourceDialog
+import com.noveltoon.app.ui.sources.BuiltInSourcePasswordDialog
 import com.noveltoon.app.util.BackupManager
 import com.noveltoon.app.util.CacheManager
 import com.noveltoon.app.util.UpdateChecker
@@ -43,6 +45,8 @@ fun SettingsScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showBuiltInPasswordDialog by remember { mutableStateOf(false) }
+    var showBuiltInDialog by remember { mutableStateOf(false) }
     var snackbarText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -123,6 +127,14 @@ fun SettingsScreen(
                     supportingContent = { Text(stringResource(R.string.manage_comic_sources_desc)) },
                     leadingContent = { Icon(Icons.Default.Image, null) },
                     modifier = Modifier.clickable { onNavigateToComicSources() }
+                )
+            }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.builtin_source_manage)) },
+                    supportingContent = { Text(stringResource(R.string.builtin_source_manage_desc)) },
+                    leadingContent = { Icon(Icons.Default.Lock, null) },
+                    modifier = Modifier.clickable { showBuiltInPasswordDialog = true }
                 )
             }
 
@@ -278,6 +290,20 @@ fun SettingsScreen(
             onDismiss = { showAboutDialog = false },
             onSnackbar = { snackbarText = it }
         )
+    }
+
+    if (showBuiltInPasswordDialog) {
+        BuiltInSourcePasswordDialog(
+            onDismiss = { showBuiltInPasswordDialog = false },
+            onSuccess = {
+                showBuiltInPasswordDialog = false
+                showBuiltInDialog = true
+            }
+        )
+    }
+
+    if (showBuiltInDialog) {
+        BuiltInSourceDialog(onDismiss = { showBuiltInDialog = false })
     }
 }
 

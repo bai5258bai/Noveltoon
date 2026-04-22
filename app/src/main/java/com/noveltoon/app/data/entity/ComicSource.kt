@@ -25,5 +25,7 @@ data class ComicSource(
     val chapterNameRule: String = "",
     val chapterUrlRule: String = "",
     val imageListRule: String = "",
-    val imageUrlRule: String = ""
+    val imageUrlRule: String = "",
+    val searchEncoding: String = "UTF-8",
+    val isBuiltIn: Boolean = false
 )

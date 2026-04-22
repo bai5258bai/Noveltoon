@@ -73,7 +73,7 @@ fun ComicReaderScreen(
 
     var currentChapterIndex by remember { mutableIntStateOf(initialChapterIndex) }
     var currentPageIndex by remember { mutableIntStateOf(0) }
-    var showControls by remember { mutableStateOf(true) }
+    var showControls by remember { mutableStateOf(false) }
     var showChapterList by remember { mutableStateOf(false) }
     var showSourceSwitch by remember { mutableStateOf(false) }
 
@@ -113,6 +113,9 @@ fun ComicReaderScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        val battery by rememberBatteryLevel()
+        val time by rememberCurrentTime()
+
         if (isLoading && images.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Color.White)
@@ -147,6 +150,30 @@ fun ComicReaderScreen(
         }
 
         // Top bar
+        // Persistent battery/time overlay at bottom when controls are hidden
+        if (!showControls && images.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(bottom = 8.dp, start = 16.dp, end = 16.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${currentPageIndex + 1} / ${images.size}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+                Text(
+                    "${battery}%  ·  $time",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+            }
+        }
+
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn() + slideInVertically { -it },
@@ -311,9 +338,6 @@ fun ComicReaderBottomBar(
     onToggleDirection: () -> Unit,
     onSeekPage: (Int) -> Unit
 ) {
-    val battery by rememberBatteryLevel()
-    val time by rememberCurrentTime()
-
     Surface(
         color = Color.Black.copy(alpha = 0.88f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -337,24 +361,15 @@ fun ComicReaderBottomBar(
                         inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                     )
                 )
-            } else {
-                Spacer(Modifier.height(20.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
                 Text(
                     "${currentPageIndex + 1} / ${totalPages.coerceAtLeast(1)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f)
+                    color = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                Text(
-                    "${battery}%  ·  $time",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.85f)
-                )
+            } else {
+                Spacer(Modifier.height(16.dp))
             }
             Spacer(Modifier.height(4.dp))
             Row(

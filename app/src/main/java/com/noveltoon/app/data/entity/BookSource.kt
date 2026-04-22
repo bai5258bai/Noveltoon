@@ -25,5 +25,7 @@ data class BookSource(
     val chapterNameRule: String = "",
     val chapterUrlRule: String = "",
     val contentRule: String = "",
-    val contentNextPageRule: String = ""
+    val contentNextPageRule: String = "",
+    val searchEncoding: String = "UTF-8",
+    val isBuiltIn: Boolean = false
 )
