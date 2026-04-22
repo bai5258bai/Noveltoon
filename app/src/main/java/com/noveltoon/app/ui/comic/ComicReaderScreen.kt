@@ -14,6 +14,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -168,7 +169,7 @@ fun ComicReaderScreen(
                                 showChapterList = true
                                 showControls = false
                             }) {
-                                Icon(Icons.Default.List, null, tint = Color.White)
+                                Icon(Icons.AutoMirrored.Filled.List, null, tint = Color.White)
                             }
 
                             IconButton(onClick = {

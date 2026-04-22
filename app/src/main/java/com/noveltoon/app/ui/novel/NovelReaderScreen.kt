@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -214,7 +215,7 @@ fun NovelReaderScreen(
                                 showChapterList = true
                                 showControls = false
                             }) {
-                                Icon(Icons.Default.List, stringResource(R.string.chapter_list))
+                                Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.chapter_list))
                             }
 
                             IconButton(onClick = {
