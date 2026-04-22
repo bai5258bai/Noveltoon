@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.SwipeDown
 import androidx.compose.material.icons.filled.SwipeLeft
 import androidx.compose.material.icons.filled.SwipeRight
@@ -40,9 +41,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import com.noveltoon.app.R
 import com.noveltoon.app.data.preferences.AppPreferences
+import com.noveltoon.app.ui.novel.SourceSwitchDialog
+import com.noveltoon.app.util.rememberBatteryLevel
+import com.noveltoon.app.util.rememberCurrentTime
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,10 +69,34 @@ fun ComicReaderScreen(
     val isLoading by viewModel.isLoadingImages.collectAsState()
 
     val readingDirection by prefs.comicReadingDirection.collectAsState(initial = 2)
+    val sources by viewModel.comicSources.collectAsState()
 
     var currentChapterIndex by remember { mutableIntStateOf(initialChapterIndex) }
+    var currentPageIndex by remember { mutableIntStateOf(0) }
     var showControls by remember { mutableStateOf(true) }
     var showChapterList by remember { mutableStateOf(false) }
+    var showSourceSwitch by remember { mutableStateOf(false) }
+
+    // Reading time tracking
+    var sessionStart by remember { mutableLongStateOf(0L) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        sessionStart = System.currentTimeMillis()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        if (sessionStart > 0) {
+            val elapsed = System.currentTimeMillis() - sessionStart
+            if (elapsed in 1_000..3_600_000) viewModel.addReadingTime(comicId, elapsed)
+            sessionStart = 0L
+        }
+    }
+    DisposableEffect(comicId) {
+        onDispose {
+            if (sessionStart > 0) {
+                val elapsed = System.currentTimeMillis() - sessionStart
+                if (elapsed in 1_000..3_600_000) viewModel.addReadingTime(comicId, elapsed)
+            }
+        }
+    }
 
     LaunchedEffect(comicId) {
         viewModel.loadComic(comicId)
@@ -96,7 +127,9 @@ fun ComicReaderScreen(
                     images = images,
                     isRtl = readingDirection == 1,
                     initialPage = comic?.lastReadPageIndex ?: 0,
+                    targetPage = currentPageIndex,
                     onPageChanged = { page ->
+                        currentPageIndex = page
                         viewModel.saveReadProgress(comicId, currentChapterIndex, page)
                     },
                     onTap = { showControls = !showControls }
@@ -105,6 +138,7 @@ fun ComicReaderScreen(
                     images = images,
                     initialPage = comic?.lastReadPageIndex ?: 0,
                     onPageChanged = { page ->
+                        currentPageIndex = page
                         viewModel.saveReadProgress(comicId, currentChapterIndex, page)
                     },
                     onTap = { showControls = !showControls }
@@ -126,7 +160,8 @@ fun ComicReaderScreen(
                 onRefresh = {
                     viewModel.refreshChapters(comicId)
                     viewModel.loadChapterImages(comicId, currentChapterIndex)
-                }
+                },
+                onSwitchSource = { showSourceSwitch = true }
             )
         }
 
@@ -140,6 +175,8 @@ fun ComicReaderScreen(
             ComicReaderBottomBar(
                 currentChapterIndex = currentChapterIndex,
                 totalChapters = chapters.size,
+                currentPageIndex = currentPageIndex,
+                totalPages = images.size,
                 readingDirection = readingDirection,
                 onPrevChapter = {
                     if (currentChapterIndex > 0) {
@@ -157,9 +194,24 @@ fun ComicReaderScreen(
                 onToggleDirection = {
                     val next = (readingDirection + 1) % 3
                     scope.launch { prefs.setComicReadingDirection(next) }
+                },
+                onSeekPage = { newPage ->
+                    currentPageIndex = newPage.coerceIn(0, (images.size - 1).coerceAtLeast(0))
                 }
             )
         }
+    }
+
+    if (showSourceSwitch) {
+        SourceSwitchDialog(
+            currentSourceName = comic?.sourceName ?: "",
+            sourceNames = sources.filter { it.enabled }.map { it.name },
+            onDismiss = { showSourceSwitch = false },
+            onSelect = { name ->
+                showSourceSwitch = false
+                viewModel.switchSource(comicId, name)
+            }
+        )
     }
 
     if (showChapterList) {
@@ -201,7 +253,8 @@ fun ComicReaderTopBar(
     title: String,
     chapterTitle: String,
     onBack: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onSwitchSource: () -> Unit
 ) {
     Surface(
         color = Color.Black.copy(alpha = 0.88f),
@@ -211,7 +264,7 @@ fun ComicReaderTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
@@ -238,6 +291,9 @@ fun ComicReaderTopBar(
             IconButton(onClick = onRefresh) {
                 Icon(Icons.Default.Refresh, stringResource(R.string.refresh), tint = Color.White)
             }
+            IconButton(onClick = onSwitchSource) {
+                Icon(Icons.Default.Source, stringResource(R.string.switch_source), tint = Color.White)
+            }
         }
     }
 }
@@ -246,51 +302,93 @@ fun ComicReaderTopBar(
 fun ComicReaderBottomBar(
     currentChapterIndex: Int,
     totalChapters: Int,
+    currentPageIndex: Int,
+    totalPages: Int,
     readingDirection: Int,
     onPrevChapter: () -> Unit,
     onNextChapter: () -> Unit,
     onShowChapters: () -> Unit,
-    onToggleDirection: () -> Unit
+    onToggleDirection: () -> Unit,
+    onSeekPage: (Int) -> Unit
 ) {
+    val battery by rememberBatteryLevel()
+    val time by rememberCurrentTime()
+
     Surface(
         color = Color.Black.copy(alpha = 0.88f),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            ComicBottomIconButton(
-                icon = Icons.Default.SkipPrevious,
-                label = stringResource(R.string.prev_chapter),
-                onClick = onPrevChapter,
-                enabled = currentChapterIndex > 0
-            )
-            ComicBottomIconButton(
-                icon = Icons.AutoMirrored.Filled.List,
-                label = stringResource(R.string.chapter_list),
-                onClick = onShowChapters
-            )
-            ComicBottomIconButton(
-                icon = when (readingDirection) {
-                    0 -> Icons.Default.SwipeRight
-                    1 -> Icons.Default.SwipeLeft
-                    else -> Icons.Default.SwipeDown
-                },
-                label = stringResource(R.string.direction),
-                onClick = onToggleDirection
-            )
-            ComicBottomIconButton(
-                icon = Icons.Default.SkipNext,
-                label = stringResource(R.string.next_chapter),
-                onClick = onNextChapter,
-                enabled = currentChapterIndex < totalChapters - 1
-            )
+            if (totalPages > 1) {
+                Slider(
+                    value = currentPageIndex.toFloat(),
+                    onValueChange = { onSeekPage(it.roundToInt()) },
+                    valueRange = 0f..(totalPages - 1).coerceAtLeast(1).toFloat(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White.copy(alpha = 0.8f),
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    )
+                )
+            } else {
+                Spacer(Modifier.height(20.dp))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${currentPageIndex + 1} / ${totalPages.coerceAtLeast(1)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+                Text(
+                    "${battery}%  ·  $time",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.85f)
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ComicBottomIconButton(
+                    icon = Icons.Default.SkipPrevious,
+                    label = stringResource(R.string.prev_chapter),
+                    onClick = onPrevChapter,
+                    enabled = currentChapterIndex > 0
+                )
+                ComicBottomIconButton(
+                    icon = Icons.AutoMirrored.Filled.List,
+                    label = stringResource(R.string.chapter_list),
+                    onClick = onShowChapters
+                )
+                ComicBottomIconButton(
+                    icon = when (readingDirection) {
+                        0 -> Icons.Default.SwipeRight
+                        1 -> Icons.Default.SwipeLeft
+                        else -> Icons.Default.SwipeDown
+                    },
+                    label = stringResource(R.string.direction),
+                    onClick = onToggleDirection
+                )
+                ComicBottomIconButton(
+                    icon = Icons.Default.SkipNext,
+                    label = stringResource(R.string.next_chapter),
+                    onClick = onNextChapter,
+                    enabled = currentChapterIndex < totalChapters - 1
+                )
+            }
         }
     }
 }
@@ -328,6 +426,7 @@ fun HorizontalComicReader(
     images: List<String>,
     isRtl: Boolean,
     initialPage: Int,
+    targetPage: Int,
     onPageChanged: (Int) -> Unit,
     onTap: () -> Unit
 ) {
@@ -338,6 +437,12 @@ fun HorizontalComicReader(
 
     LaunchedEffect(pagerState.currentPage) {
         onPageChanged(pagerState.currentPage)
+    }
+
+    LaunchedEffect(targetPage) {
+        if (targetPage != pagerState.currentPage && targetPage in images.indices) {
+            pagerState.scrollToPage(targetPage)
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -351,17 +456,6 @@ fun HorizontalComicReader(
                 onTap = onTap
             )
         }
-
-        Text(
-            "${pagerState.currentPage + 1} / ${images.size}",
-            color = Color.White.copy(alpha = 0.7f),
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 120.dp)
-                .background(Color.Black.copy(alpha = 0.5f), MaterialTheme.shapes.small)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-        )
     }
 }
 
@@ -397,17 +491,6 @@ fun VerticalComicReader(
                 ComicPageImage(imageUrl = imageUrl)
             }
         }
-
-        Text(
-            "${listState.firstVisibleItemIndex + 1} / ${images.size}",
-            color = Color.White.copy(alpha = 0.7f),
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 120.dp)
-                .background(Color.Black.copy(alpha = 0.5f), MaterialTheme.shapes.small)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-        )
     }
 }
 

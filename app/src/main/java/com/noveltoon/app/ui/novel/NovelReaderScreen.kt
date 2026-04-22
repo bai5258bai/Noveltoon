@@ -13,7 +13,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -23,13 +22,15 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -39,6 +40,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.noveltoon.app.R
 import com.noveltoon.app.data.preferences.AppPreferences
@@ -47,6 +50,8 @@ import com.noveltoon.app.ui.theme.ReaderGray
 import com.noveltoon.app.ui.theme.ReaderGreen
 import com.noveltoon.app.ui.theme.ReaderParchment
 import com.noveltoon.app.ui.theme.ReaderWhite
+import com.noveltoon.app.util.rememberBatteryLevel
+import com.noveltoon.app.util.rememberCurrentTime
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -65,6 +70,7 @@ fun NovelReaderScreen(
     val chapters by viewModel.chapters.collectAsState()
     val content by viewModel.chapterContent.collectAsState()
     val isLoading by viewModel.isLoadingContent.collectAsState()
+    val sources by viewModel.bookSources.collectAsState()
 
     val fontSize by prefs.novelFontSize.collectAsState(initial = 18f)
     val lineSpacing by prefs.novelLineSpacing.collectAsState(initial = 1.5f)
@@ -73,10 +79,34 @@ fun NovelReaderScreen(
     val readingMode by prefs.novelReadingMode.collectAsState(initial = 1)
 
     var currentChapterIndex by remember { mutableIntStateOf(0) }
+    var currentPageIndex by remember { mutableIntStateOf(0) }
+    var totalPagesInChapter by remember { mutableIntStateOf(1) }
     var showControls by remember { mutableStateOf(true) }
     var showChapterList by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showSourceSwitch by remember { mutableStateOf(false) }
     var chapterLoaded by remember { mutableStateOf(false) }
+
+    // Reading time tracking
+    var sessionStart by remember { mutableLongStateOf(0L) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        sessionStart = System.currentTimeMillis()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
+        if (sessionStart > 0) {
+            val elapsed = System.currentTimeMillis() - sessionStart
+            if (elapsed in 1_000..3_600_000) viewModel.addReadingTime(novelId, elapsed)
+            sessionStart = 0L
+        }
+    }
+    DisposableEffect(novelId) {
+        onDispose {
+            if (sessionStart > 0) {
+                val elapsed = System.currentTimeMillis() - sessionStart
+                if (elapsed in 1_000..3_600_000) viewModel.addReadingTime(novelId, elapsed)
+            }
+        }
+    }
 
     val backgroundColor = when (bgIndex) {
         0 -> ReaderWhite
@@ -98,6 +128,10 @@ fun NovelReaderScreen(
             viewModel.loadChapter(novelId, currentChapterIndex)
             chapterLoaded = true
         }
+    }
+
+    LaunchedEffect(currentChapterIndex) {
+        currentPageIndex = 0
     }
 
     Box(
@@ -136,6 +170,10 @@ fun NovelReaderScreen(
                     },
                     onTap = { showControls = !showControls }
                 )
+                LaunchedEffect(content) {
+                    totalPagesInChapter = 1
+                    currentPageIndex = 0
+                }
             } else {
                 PageReader(
                     content = content,
@@ -146,24 +184,16 @@ fun NovelReaderScreen(
                     textColor = textColor,
                     currentChapterIndex = currentChapterIndex,
                     totalChapters = chapters.size,
-                    onPrevChapter = {
-                        if (currentChapterIndex > 0) {
-                            currentChapterIndex--
-                            viewModel.loadChapter(novelId, currentChapterIndex)
-                        }
-                    },
-                    onNextChapter = {
-                        if (currentChapterIndex < chapters.size - 1) {
-                            currentChapterIndex++
-                            viewModel.loadChapter(novelId, currentChapterIndex)
-                        }
+                    targetPage = currentPageIndex,
+                    onPageInfoChanged = { pageIndex, total ->
+                        currentPageIndex = pageIndex
+                        totalPagesInChapter = total
                     },
                     onTap = { showControls = !showControls }
                 )
             }
         }
 
-        // Top bar - slides from top
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn() + slideInVertically { -it },
@@ -177,11 +207,11 @@ fun NovelReaderScreen(
                     viewModel.refreshChapters(novelId)
                     viewModel.loadChapter(novelId, currentChapterIndex)
                 },
+                onSwitchSource = { showSourceSwitch = true },
                 onSettings = { showSettings = true }
             )
         }
 
-        // Bottom bar - slides from bottom, persists until dismissed
         AnimatedVisibility(
             visible = showControls,
             enter = fadeIn() + slideInVertically { it },
@@ -191,6 +221,8 @@ fun NovelReaderScreen(
             NovelReaderBottomBar(
                 currentChapterIndex = currentChapterIndex,
                 totalChapters = chapters.size,
+                currentPageIndex = currentPageIndex,
+                totalPagesInChapter = totalPagesInChapter,
                 onPrevChapter = {
                     if (currentChapterIndex > 0) {
                         currentChapterIndex--
@@ -205,9 +237,8 @@ fun NovelReaderScreen(
                 },
                 onShowChapters = { showChapterList = true },
                 onShowSettings = { showSettings = true },
-                onSeek = { newIndex ->
-                    currentChapterIndex = newIndex
-                    viewModel.loadChapter(novelId, newIndex)
+                onSeekPage = { newPageIndex ->
+                    currentPageIndex = newPageIndex.coerceIn(0, (totalPagesInChapter - 1).coerceAtLeast(0))
                 }
             )
         }
@@ -264,6 +295,18 @@ fun NovelReaderScreen(
             )
         }
     }
+
+    if (showSourceSwitch) {
+        SourceSwitchDialog(
+            currentSourceName = novel?.sourceName ?: "",
+            sourceNames = sources.filter { it.enabled }.map { it.name },
+            onDismiss = { showSourceSwitch = false },
+            onSelect = { name ->
+                showSourceSwitch = false
+                viewModel.switchSource(novelId, name)
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -272,6 +315,7 @@ fun ReaderTopBar(
     title: String,
     onBack: () -> Unit,
     onRefresh: () -> Unit,
+    onSwitchSource: () -> Unit,
     onSettings: () -> Unit
 ) {
     Surface(
@@ -283,7 +327,7 @@ fun ReaderTopBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
@@ -299,6 +343,9 @@ fun ReaderTopBar(
             IconButton(onClick = onRefresh) {
                 Icon(Icons.Default.Refresh, stringResource(R.string.refresh))
             }
+            IconButton(onClick = onSwitchSource) {
+                Icon(Icons.Default.Source, stringResource(R.string.switch_source))
+            }
             IconButton(onClick = onSettings) {
                 Icon(Icons.Default.Settings, stringResource(R.string.reader_settings))
             }
@@ -310,12 +357,17 @@ fun ReaderTopBar(
 fun NovelReaderBottomBar(
     currentChapterIndex: Int,
     totalChapters: Int,
+    currentPageIndex: Int,
+    totalPagesInChapter: Int,
     onPrevChapter: () -> Unit,
     onNextChapter: () -> Unit,
     onShowChapters: () -> Unit,
     onShowSettings: () -> Unit,
-    onSeek: (Int) -> Unit
+    onSeekPage: (Int) -> Unit
 ) {
+    val battery by rememberBatteryLevel()
+    val time by rememberCurrentTime()
+
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 8.dp,
@@ -328,22 +380,33 @@ fun NovelReaderBottomBar(
                 .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            if (totalChapters > 0) {
+            if (totalPagesInChapter > 1) {
                 Slider(
-                    value = currentChapterIndex.toFloat(),
-                    onValueChange = { onSeek(it.roundToInt().coerceIn(0, (totalChapters - 1).coerceAtLeast(0))) },
-                    valueRange = 0f..(totalChapters - 1).coerceAtLeast(1).toFloat(),
+                    value = currentPageIndex.toFloat(),
+                    onValueChange = { onSeekPage(it.roundToInt()) },
+                    valueRange = 0f..(totalPagesInChapter - 1).coerceAtLeast(1).toFloat(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text(
-                    "${currentChapterIndex + 1} / $totalChapters",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(4.dp))
+            } else {
+                Spacer(Modifier.height(20.dp))
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${currentPageIndex + 1} / ${totalPagesInChapter.coerceAtLeast(1)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${battery}%  ·  $time",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -486,8 +549,8 @@ fun PageReader(
     textColor: Color,
     currentChapterIndex: Int,
     totalChapters: Int,
-    onPrevChapter: () -> Unit,
-    onNextChapter: () -> Unit,
+    targetPage: Int,
+    onPageInfoChanged: (Int, Int) -> Unit,
     onTap: () -> Unit
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -503,7 +566,7 @@ fun PageReader(
             )
     ) {
         val availableWidthPx = with(density) { (maxWidth - (pageMargin * 2).dp).toPx() }
-        val availableHeightPx = with(density) { (maxHeight - 48.dp).toPx() }
+        val availableHeightPx = with(density) { (maxHeight - 80.dp).toPx() }
 
         val textStyle = TextStyle(
             fontSize = fontSize.sp,
@@ -523,14 +586,25 @@ fun PageReader(
 
         val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
 
-        LaunchedEffect(content) {
+        LaunchedEffect(content, pages.size) {
             pagerState.scrollToPage(0)
+            onPageInfoChanged(0, pages.size.coerceAtLeast(1))
+        }
+
+        LaunchedEffect(pagerState.currentPage) {
+            onPageInfoChanged(pagerState.currentPage, pages.size.coerceAtLeast(1))
+        }
+
+        LaunchedEffect(targetPage) {
+            if (targetPage != pagerState.currentPage && targetPage in pages.indices) {
+                pagerState.scrollToPage(targetPage)
+            }
         }
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.systemBars)
+                .windowInsetsPadding(WindowInsets.statusBars)
         ) {
             if (chapterTitle.isNotBlank()) {
                 Text(
@@ -554,10 +628,7 @@ fun PageReader(
                         .fillMaxSize()
                         .padding(horizontal = pageMargin.dp)
                 ) {
-                    Text(
-                        text = pageContent,
-                        style = textStyle
-                    )
+                    Text(text = pageContent, style = textStyle)
                 }
             }
 
@@ -580,11 +651,6 @@ fun PageReader(
                 )
             }
         }
-
-        // Auto-advance chapter when reaching end
-        LaunchedEffect(pagerState.currentPage, pages.size) {
-            // No auto-advance; users can use bottom bar for chapter changes
-        }
     }
 }
 
@@ -599,11 +665,7 @@ private fun splitIntoPages(
 
     val pages = mutableListOf<String>()
     val constraints = Constraints(maxWidth = widthPx, maxHeight = Int.MAX_VALUE)
-    val layout = textMeasurer.measure(
-        text = content,
-        style = style,
-        constraints = constraints
-    )
+    val layout = textMeasurer.measure(text = content, style = style, constraints = constraints)
 
     val totalHeight = layout.size.height
     if (totalHeight <= heightPx) {
@@ -624,12 +686,10 @@ private fun splitIntoPages(
             pageStartY = layout.getLineTop(lineIndex)
         }
     }
-
     if (pageStartLine < lineCount) {
         val startOffset = layout.getLineStart(pageStartLine)
         pages.add(content.substring(startOffset))
     }
-
     return if (pages.isEmpty()) listOf(content) else pages
 }
 
@@ -723,4 +783,47 @@ fun ReaderSettingsPanel(
         }
         Spacer(Modifier.navigationBarsPadding())
     }
+}
+
+@Composable
+fun SourceSwitchDialog(
+    currentSourceName: String,
+    sourceNames: List<String>,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.switch_source)) },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 360.dp)) {
+                if (sourceNames.isEmpty()) {
+                    Text(stringResource(R.string.no_sources))
+                } else {
+                    LazyColumn {
+                        items(sourceNames) { name ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelect(name) }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = name == currentSourceName,
+                                    onClick = { onSelect(name) }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(name)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+        shape = RoundedCornerShape(20.dp)
+    )
 }

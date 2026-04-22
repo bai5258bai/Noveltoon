@@ -1,5 +1,6 @@
 package com.noveltoon.app.ui.settings
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -8,21 +9,28 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.noveltoon.app.BuildConfig
 import com.noveltoon.app.R
 import com.noveltoon.app.data.preferences.AppPreferences
 import com.noveltoon.app.util.BackupManager
 import com.noveltoon.app.util.CacheManager
+import com.noveltoon.app.util.UpdateChecker
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    onNavigateToBookSources: () -> Unit = {},
+    onNavigateToComicSources: () -> Unit = {}
+) {
     val context = LocalContext.current
     val prefs = remember { AppPreferences(context) }
     val scope = rememberCoroutineScope()
@@ -35,7 +43,7 @@ fun SettingsScreen() {
     var showThemeDialog by remember { mutableStateOf(false) }
     var showClearCacheDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
-    var showSnackbar by remember { mutableStateOf("") }
+    var snackbarText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         cacheSize = CacheManager.formatSize(CacheManager.getCacheSize(context))
@@ -46,55 +54,45 @@ fun SettingsScreen() {
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                val success = BackupManager.exportBackup(context, it)
-                showSnackbar = if (success) context.getString(R.string.backup_success)
-                else context.getString(R.string.backup_failed)
+                val ok = BackupManager.exportBackup(context, it)
+                snackbarText = context.getString(if (ok) R.string.backup_success else R.string.backup_failed)
             }
         }
     }
-
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
-                val success = BackupManager.importBackup(context, it)
-                showSnackbar = if (success) context.getString(R.string.restore_success)
-                else context.getString(R.string.restore_failed)
+                val ok = BackupManager.importBackup(context, it)
+                snackbarText = context.getString(if (ok) R.string.restore_success else R.string.restore_failed)
             }
         }
     }
 
     Scaffold(
-        contentWindowInsets = WindowInsets.statusBars,
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.tab_settings)) },
-                windowInsets = WindowInsets(0)
+                title = { Text(stringResource(R.string.tab_settings)) }
             )
         },
         snackbarHost = {
-            if (showSnackbar.isNotEmpty()) {
+            if (snackbarText.isNotEmpty()) {
                 Snackbar(
                     action = {
-                        TextButton(onClick = { showSnackbar = "" }) {
-                            Text(stringResource(R.string.ok))
-                        }
+                        TextButton(onClick = { snackbarText = "" }) { Text(stringResource(R.string.ok)) }
                     }
                 ) {
-                    Text(showSnackbar)
+                    Text(snackbarText)
                 }
             }
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            modifier = Modifier.fillMaxSize().padding(padding)
         ) {
-            item {
-                SettingsSectionHeader(stringResource(R.string.settings_display))
-            }
+            item { SettingsSectionHeader(stringResource(R.string.settings_display)) }
             item {
                 val themeText = when (themeMode) {
                     0 -> stringResource(R.string.theme_light)
@@ -110,10 +108,26 @@ fun SettingsScreen() {
             }
 
             item { HorizontalDivider() }
-
+            item { SettingsSectionHeader(stringResource(R.string.settings_sources)) }
             item {
-                SettingsSectionHeader(stringResource(R.string.settings_network))
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.manage_book_sources)) },
+                    supportingContent = { Text(stringResource(R.string.manage_book_sources_desc)) },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.MenuBook, null) },
+                    modifier = Modifier.clickable { onNavigateToBookSources() }
+                )
             }
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.manage_comic_sources)) },
+                    supportingContent = { Text(stringResource(R.string.manage_comic_sources_desc)) },
+                    leadingContent = { Icon(Icons.Default.Image, null) },
+                    modifier = Modifier.clickable { onNavigateToComicSources() }
+                )
+            }
+
+            item { HorizontalDivider() }
+            item { SettingsSectionHeader(stringResource(R.string.settings_network)) }
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.wifi_only_original)) },
@@ -129,10 +143,7 @@ fun SettingsScreen() {
             }
 
             item { HorizontalDivider() }
-
-            item {
-                SettingsSectionHeader(stringResource(R.string.settings_storage))
-            }
+            item { SettingsSectionHeader(stringResource(R.string.settings_storage)) }
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.image_cache)) },
@@ -165,10 +176,7 @@ fun SettingsScreen() {
             }
 
             item { HorizontalDivider() }
-
-            item {
-                SettingsSectionHeader(stringResource(R.string.settings_backup))
-            }
+            item { SettingsSectionHeader(stringResource(R.string.settings_backup)) }
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.export_backup)) },
@@ -191,7 +199,6 @@ fun SettingsScreen() {
             }
 
             item { HorizontalDivider() }
-
             item {
                 ListItem(
                     headlineContent = { Text(stringResource(R.string.about)) },
@@ -222,7 +229,7 @@ fun SettingsScreen() {
                                     showThemeDialog = false
                                 }
                                 .padding(vertical = 12.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
                                 selected = themeMode == value,
@@ -252,7 +259,7 @@ fun SettingsScreen() {
                         CacheManager.clearCache(context)
                         cacheSize = CacheManager.formatSize(CacheManager.getCacheSize(context))
                         showClearCacheDialog = false
-                        showSnackbar = context.getString(R.string.cache_cleared)
+                        snackbarText = context.getString(R.string.cache_cleared)
                     }
                 }) {
                     Text(stringResource(R.string.confirm))
@@ -267,35 +274,105 @@ fun SettingsScreen() {
     }
 
     if (showAboutDialog) {
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = { Text(stringResource(R.string.app_name)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.about_version, "1.0.1"))
-                    Spacer(Modifier.height(6.dp))
-                    Text(stringResource(R.string.about_personal_use))
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        stringResource(R.string.about_developer),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        stringResource(R.string.about_disclaimer),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text(stringResource(R.string.ok))
-                }
-            }
+        AboutDialog(
+            onDismiss = { showAboutDialog = false },
+            onSnackbar = { snackbarText = it }
         )
     }
+}
+
+@Composable
+private fun AboutDialog(onDismiss: () -> Unit, onSnackbar: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var updateInfo by remember { mutableStateOf<com.noveltoon.app.util.UpdateInfo?>(null) }
+    var checkResult by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.app_name)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME))
+                Spacer(Modifier.height(6.dp))
+                Text(stringResource(R.string.about_personal_use))
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.about_developer),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    stringResource(R.string.about_disclaimer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(Modifier.height(16.dp))
+                if (checkResult != null) {
+                    Text(
+                        checkResult!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                OutlinedButton(
+                    onClick = {
+                        checking = true
+                        checkResult = null
+                        scope.launch {
+                            val info = UpdateChecker.fetchLatestRelease()
+                            checking = false
+                            if (info == null) {
+                                checkResult = context.getString(R.string.update_failed)
+                            } else if (UpdateChecker.isNewer(info.versionName, BuildConfig.VERSION_NAME)) {
+                                updateInfo = info
+                                checkResult = context.getString(R.string.update_available, info.versionName)
+                            } else {
+                                checkResult = context.getString(R.string.update_latest)
+                            }
+                        }
+                    },
+                    enabled = !checking,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (checking) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.checking_update))
+                    } else {
+                        Icon(Icons.Default.SystemUpdate, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.check_update))
+                    }
+                }
+                if (updateInfo != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.releaseUrl))
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.OpenInBrowser, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.goto_download))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.ok)) }
+        }
+    )
 }
 
 @Composable

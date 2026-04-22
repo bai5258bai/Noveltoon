@@ -18,6 +18,21 @@
     <string name="delete_confirm">Are you sure you want to delete?</string>
     <string name="url">URL</string>
     <string name="direction">Direction</string>
+    <string name="author_unknown">Unknown</string>
+    <string name="read_to">Read: %s</string>
+    <string name="unread">Not started</string>
+    <string name="total_reading">Reading time: %s</string>
+    <string name="select_all">Select All</string>
+    <string name="invert_selection">Invert</string>
+    <string name="search_sources">Search Sources</string>
+    <string name="switch_source">Switch Source</string>
+    <string name="check_update">Check Update</string>
+    <string name="checking_update">Checking…</string>
+    <string name="update_latest">You are on the latest version</string>
+    <string name="update_available">New version: %s</string>
+    <string name="update_failed">Failed to check updates</string>
+    <string name="goto_download">Download</string>
+    <string name="later">Later</string>
 
     <string name="empty_bookshelf">Your bookshelf is empty</string>
     <string name="empty_bookshelf_desc">Search for novels you love to start the reading journey</string>
@@ -64,9 +79,12 @@
     <string name="import_action">Import</string>
 
     <string name="settings_display">Display</string>
+    <string name="settings_sources">Book / Comic Sources</string>
     <string name="settings_network">Network</string>
     <string name="settings_storage">Storage</string>
     <string name="settings_backup">Backup &amp; Restore</string>
+    <string name="manage_book_sources_desc">Manage novel search sources</string>
+    <string name="manage_comic_sources_desc">Manage comic search sources</string>
     <string name="theme_mode">Theme Mode</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>

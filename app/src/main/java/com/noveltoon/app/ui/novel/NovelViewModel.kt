@@ -3,6 +3,8 @@ package com.noveltoon.app.ui.novel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.noveltoon.app.data.AppDatabase
+import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.data.entity.NovelChapter
 import com.noveltoon.app.data.parser.SearchResult
@@ -12,6 +14,10 @@ import kotlinx.coroutines.launch
 
 class NovelViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = NovelRepository(application)
+    private val bookSourceDao = AppDatabase.getInstance(application).bookSourceDao()
+
+    val bookSources: StateFlow<List<BookSource>> = bookSourceDao.getAllSources()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val novels: StateFlow<List<Novel>> = repository.getAllNovels()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -110,6 +116,21 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 repository.importFromUrl(url)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun addReadingTime(id: Long, ms: Long) {
+        if (ms <= 0) return
+        viewModelScope.launch { repository.addReadingTime(id, ms) }
+    }
+
+    fun switchSource(novelId: Long, newSourceName: String) {
+        viewModelScope.launch {
+            try {
+                repository.switchSource(novelId, newSourceName)
+                _currentNovel.value = repository.getNovelById(novelId)
+                _chapters.value = repository.getChaptersList(novelId)
             } catch (_: Exception) {}
         }
     }

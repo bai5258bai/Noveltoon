@@ -3,8 +3,10 @@ package com.noveltoon.app.ui.comic
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.noveltoon.app.data.AppDatabase
 import com.noveltoon.app.data.entity.Comic
 import com.noveltoon.app.data.entity.ComicChapter
+import com.noveltoon.app.data.entity.ComicSource
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.repository.ComicRepository
 import kotlinx.coroutines.flow.*
@@ -12,6 +14,10 @@ import kotlinx.coroutines.launch
 
 class ComicViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ComicRepository(application)
+    private val comicSourceDao = AppDatabase.getInstance(application).comicSourceDao()
+
+    val comicSources: StateFlow<List<ComicSource>> = comicSourceDao.getAllSources()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val comics: StateFlow<List<Comic>> = repository.getAllComics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -108,6 +114,21 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 repository.importFromUrl(url)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun addReadingTime(id: Long, ms: Long) {
+        if (ms <= 0) return
+        viewModelScope.launch { repository.addReadingTime(id, ms) }
+    }
+
+    fun switchSource(comicId: Long, newSourceName: String) {
+        viewModelScope.launch {
+            try {
+                repository.switchSource(comicId, newSourceName)
+                _currentComic.value = repository.getComicById(comicId)
+                _chapters.value = repository.getChaptersList(comicId)
             } catch (_: Exception) {}
         }
     }

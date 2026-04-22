@@ -1,0 +1,50 @@
+[
+  {
+    "name": "拷贝漫画 (copymanga)",
+    "baseUrl": "https://www.copymanga.tv",
+    "enabled": true,
+    "sortOrder": 0,
+    "searchUrl": "https://www.copymanga.tv/search?q={{keyword}}",
+    "searchListRule": "ul.list-comic li",
+    "searchNameRule": "h3 a@text",
+    "searchAuthorRule": "div.author a@text",
+    "searchCoverRule": "img@src",
+    "searchUrlRule": "a@href",
+    "chapterListRule": "ul.list-chapter li a",
+    "chapterNameRule": "@text",
+    "chapterUrlRule": "@href",
+    "imageListRule": "div.comic-content img@src"
+  },
+  {
+    "name": "禁漫天堂 (jmcomic)",
+    "baseUrl": "https://18comic.vip",
+    "enabled": false,
+    "sortOrder": 1,
+    "searchUrl": "https://18comic.vip/search/photos?search_query={{keyword}}",
+    "searchListRule": "div.row div.thumb-overlay-albums",
+    "searchNameRule": "div.video-title@text",
+    "searchAuthorRule": "div.title-truncate a@text",
+    "searchCoverRule": "img@data-original",
+    "searchUrlRule": "a@href",
+    "chapterListRule": "ul.btn-toolbar li a",
+    "chapterNameRule": "@text",
+    "chapterUrlRule": "@href",
+    "imageListRule": "div.scramble-page img@data-original"
+  },
+  {
+    "name": "动漫之家 (dmzj)",
+    "baseUrl": "https://m.dmzj.com",
+    "enabled": true,
+    "sortOrder": 2,
+    "searchUrl": "https://sacg.dmzj.com/comicsum/search.php?s={{keyword}}",
+    "searchListRule": "ul.list_con_li li",
+    "searchNameRule": "p.title@text",
+    "searchAuthorRule": "p.author@text",
+    "searchCoverRule": "img@src",
+    "searchUrlRule": "a@href",
+    "chapterListRule": "ul.list_block li a",
+    "chapterNameRule": "@text",
+    "chapterUrlRule": "@href",
+    "imageListRule": "div.comic_wraCon img@src"
+  }
+]

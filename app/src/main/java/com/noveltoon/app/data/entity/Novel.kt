@@ -20,5 +20,6 @@ data class Novel(
     val localPath: String = "",
     val addedTime: Long = System.currentTimeMillis(),
     val lastReadTime: Long = System.currentTimeMillis(),
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val totalReadingTimeMs: Long = 0L
 )

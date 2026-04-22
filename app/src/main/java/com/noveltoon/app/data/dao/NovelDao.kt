@@ -32,4 +32,7 @@ interface NovelDao {
 
     @Query("UPDATE novels SET isCompleted = :completed WHERE id = :id")
     suspend fun markCompleted(id: Long, completed: Boolean)
+
+    @Query("UPDATE novels SET totalReadingTimeMs = totalReadingTimeMs + :addMs, lastReadTime = :time WHERE id = :id")
+    suspend fun addReadingTime(id: Long, addMs: Long, time: Long = System.currentTimeMillis())
 }

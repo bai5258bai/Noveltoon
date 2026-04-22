@@ -1,0 +1,50 @@
+[
+  {
+    "name": "笔趣阁 (biquge.la)",
+    "baseUrl": "https://www.biquge.la",
+    "enabled": true,
+    "sortOrder": 0,
+    "searchUrl": "https://www.biquge.la/modules/article/search.php?searchkey={{keyword}}",
+    "searchListRule": "table.grid tr:has(td.odd)",
+    "searchNameRule": "td.odd:nth-child(1) a@text",
+    "searchAuthorRule": "td.odd:nth-child(3)@text",
+    "searchUrlRule": "td.odd:nth-child(1) a@href",
+    "searchLatestChapterRule": "td.odd:nth-child(2) a@text",
+    "chapterListRule": "div#list dl dd a",
+    "chapterNameRule": "@text",
+    "chapterUrlRule": "@href",
+    "contentRule": "div#content@html"
+  },
+  {
+    "name": "笔趣阁 (xbiqugew)",
+    "baseUrl": "https://www.xbiqugew.com",
+    "enabled": true,
+    "sortOrder": 1,
+    "searchUrl": "https://www.xbiqugew.com/search.php?q={{keyword}}",
+    "searchListRule": "div.result-game-item-detail",
+    "searchNameRule": "h3.result-game-item-title a@text",
+    "searchAuthorRule": "div.result-game-item-info p:nth-child(1) span:nth-child(2)@text",
+    "searchUrlRule": "h3.result-game-item-title a@href",
+    "searchLatestChapterRule": "div.result-game-item-info p:nth-child(4) a@text",
+    "chapterListRule": "div#list dl dd a",
+    "chapterNameRule": "@text",
+    "chapterUrlRule": "@href",
+    "contentRule": "div#content@html"
+  },
+  {
+    "name": "顶点小说 (23wx)",
+    "baseUrl": "https://www.23wx.cc",
+    "enabled": true,
+    "sortOrder": 2,
+    "searchUrl": "https://www.23wx.cc/search.html?keyword={{keyword}}",
+    "searchListRule": "div.bookbox",
+    "searchNameRule": "h4.bookname a@text",
+    "searchAuthorRule": "div.author@text",
+    "searchUrlRule": "h4.bookname a@href",
+    "searchLatestChapterRule": "div.update a@text",
+    "chapterListRule": "ul.chapter-list li a",
+    "chapterNameRule": "@text",
+    "chapterUrlRule": "@href",
+    "contentRule": "div.content@html"
+  }
+]

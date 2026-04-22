@@ -20,6 +20,21 @@
     <string name="delete_confirm">确定要删除吗？</string>
     <string name="url">链接地址</string>
     <string name="direction">方向</string>
+    <string name="author_unknown">未知作者</string>
+    <string name="read_to">已读至 %s</string>
+    <string name="unread">尚未阅读</string>
+    <string name="total_reading">累计阅读 %s</string>
+    <string name="select_all">全选</string>
+    <string name="invert_selection">反选</string>
+    <string name="search_sources">搜索源</string>
+    <string name="switch_source">切换源</string>
+    <string name="check_update">检查更新</string>
+    <string name="checking_update">正在检查...</string>
+    <string name="update_latest">已是最新版本</string>
+    <string name="update_available">发现新版本：%s</string>
+    <string name="update_failed">检查更新失败</string>
+    <string name="goto_download">前往下载</string>
+    <string name="later">稍后</string>
 
     <!-- Novel Bookshelf -->
     <string name="empty_bookshelf">书架空空如也</string>
@@ -71,9 +86,12 @@
 
     <!-- Settings -->
     <string name="settings_display">显示</string>
+    <string name="settings_sources">书源 / 图源</string>
     <string name="settings_network">网络</string>
     <string name="settings_storage">存储</string>
     <string name="settings_backup">备份与恢复</string>
+    <string name="manage_book_sources_desc">管理小说搜索来源</string>
+    <string name="manage_comic_sources_desc">管理漫画搜索来源</string>
     <string name="theme_mode">主题模式</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
