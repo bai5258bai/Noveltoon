@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+
+    <!-- Background circle -->
+    <path
+        android:fillColor="#F0EDF9"
+        android:pathData="M120,20 C175,20 220,65 220,120 C220,175 175,220 120,220 C65,220 20,175 20,120 C20,65 65,20 120,20 Z" />
+
+    <!-- Cloud -->
+    <path
+        android:fillColor="#E4DFF4"
+        android:pathData="M175,55 C175,51 178,48 182,48 C183,45 186,43 189,43 C192,43 195,45 196,48 C200,48 203,51 203,55 C203,59 200,62 196,62 L182,62 C178,62 175,59 175,55 Z" />
+
+    <!-- Stars -->
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M170,95 L171,97.5 L173.5,98.5 L171,99.5 L170,102 L169,99.5 L166.5,98.5 L169,97.5 Z" />
+
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M50,105 L51,107.5 L53.5,108.5 L51,109.5 L50,112 L49,109.5 L46.5,108.5 L49,107.5 Z" />
+
+    <!-- Comic panels (top-left corner) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1.5"
+        android:pathData="M42,55 L78,55 L78,80 L42,80 Z" />
+
+    <path
+        android:fillColor="#E8E4F5"
+        android:pathData="M45,58 L75,58 L75,67 L45,67 Z" />
+
+    <path
+        android:fillColor="#D6D0EC"
+        android:pathData="M45,70 L58,70 L58,77 L45,77 Z" />
+
+    <path
+        android:fillColor="#D6D0EC"
+        android:pathData="M62,70 L75,70 L75,77 L62,77 Z" />
+
+    <!-- Books stack left -->
+    <path
+        android:fillColor="#C4BAFF"
+        android:pathData="M30,155 L45,155 L45,200 L30,200 Z" />
+
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M47,150 L62,150 L62,200 L47,200 Z" />
+
+    <path
+        android:fillColor="#8479D6"
+        android:pathData="M64,160 L77,160 L77,200 L64,200 Z" />
+
+    <!-- Plant in pot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1.5"
+        android:pathData="M82,175 L100,175 L98,195 L84,195 Z" />
+
+    <path
+        android:fillColor="#7DC89A"
+        android:pathData="M91,175 C91,160 85,155 82,153 C83,162 86,170 91,175 Z" />
+
+    <path
+        android:fillColor="#8BD4A7"
+        android:pathData="M91,175 C91,160 97,155 100,153 C99,162 96,170 91,175 Z" />
+
+    <path
+        android:fillColor="#6BB88A"
+        android:pathData="M91,175 C91,165 91,160 91,155 C93,162 93,170 91,175 Z" />
+
+    <!-- Open comic book in middle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1.5"
+        android:pathData="M105,180 L155,180 L160,200 L100,200 Z" />
+
+    <!-- Comic book panels -->
+    <path
+        android:fillColor="#E8E4F5"
+        android:pathData="M110,184 L128,184 L128,196 L110,196 Z" />
+
+    <path
+        android:fillColor="#E8E4F5"
+        android:pathData="M132,184 L150,184 L150,196 L132,196 Z" />
+
+    <!-- Sofa/armchair -->
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M165,160 C165,155 170,152 175,152 L195,152 C200,152 205,155 205,160 L205,200 L165,200 Z" />
+
+    <path
+        android:fillColor="#C4BAFF"
+        android:pathData="M172,160 L198,160 L198,185 L172,185 Z" />
+
+    <!-- Pillow on sofa -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M178,165 C178,163 180,161 183,161 L187,161 C190,161 192,163 192,165 L192,172 C192,174 190,176 187,176 L183,176 C180,176 178,174 178,172 Z" />
+
+    <!-- Smile on pillow -->
+    <path
+        android:strokeColor="#7A6DD8"
+        android:strokeWidth="1.2"
+        android:pathData="M182,167 L183,167 M187,167 L188,167 M183,170 C184,171 186,171 187,170"
+        android:fillColor="#00000000" />
+
+    <!-- Heart speech bubble -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1"
+        android:pathData="M180,140 C180,137 182,135 185,135 L200,135 C203,135 205,137 205,140 L205,148 C205,151 203,153 200,153 L195,153 L192,157 L190,153 L185,153 C182,153 180,151 180,148 Z" />
+
+    <path
+        android:fillColor="#FF9BB7"
+        android:pathData="M189,142 C188,140 185,140 185,143 C185,145 189,147 192.5,149.5 C196,147 200,145 200,143 C200,140 197,140 196,142 C195,140 190,140 189,142 Z" />
+
+    <!-- Coffee cup -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1"
+        android:pathData="M140,170 L155,170 L154,185 L141,185 Z" />
+
+    <path
+        android:fillColor="#7A6DD8"
+        android:pathData="M143,173 L152,173 L151,178 L144,178 Z" />
+</vector>

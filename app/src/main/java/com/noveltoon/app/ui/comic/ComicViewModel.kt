@@ -92,9 +92,23 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val id = repository.addComic(comic)
             val chaptersWithId = chapters.map { it.copy(comicId = id) }
-            repository.getChaptersList(id)
             val db = com.noveltoon.app.data.AppDatabase.getInstance(getApplication())
             db.comicChapterDao().insertAll(chaptersWithId)
+        }
+    }
+
+    fun refreshChapters(comicId: Long) {
+        viewModelScope.launch {
+            repository.refreshChapters(comicId)
+            _chapters.value = repository.getChaptersList(comicId)
+        }
+    }
+
+    fun importFromUrl(url: String) {
+        viewModelScope.launch {
+            try {
+                repository.importFromUrl(url)
+            } catch (_: Exception) {}
         }
     }
 }

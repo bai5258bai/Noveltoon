@@ -66,8 +66,12 @@ fun SettingsScreen() {
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
-            TopAppBar(title = { Text(stringResource(R.string.tab_settings)) })
+            CenterAlignedTopAppBar(
+                title = { Text(stringResource(R.string.tab_settings)) },
+                windowInsets = WindowInsets(0)
+            )
         },
         snackbarHost = {
             if (showSnackbar.isNotEmpty()) {
@@ -268,10 +272,16 @@ fun SettingsScreen() {
             title = { Text(stringResource(R.string.app_name)) },
             text = {
                 Column {
-                    Text(stringResource(R.string.about_version, "1.0.0"))
-                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.about_version, "1.0.1"))
+                    Spacer(Modifier.height(6.dp))
                     Text(stringResource(R.string.about_personal_use))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        stringResource(R.string.about_developer),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(10.dp))
                     Text(
                         stringResource(R.string.about_disclaimer),
                         style = MaterialTheme.typography.bodySmall,

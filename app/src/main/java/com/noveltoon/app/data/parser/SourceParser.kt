@@ -236,4 +236,60 @@ class SourceParser {
             emptyList()
         }
     }
+
+    suspend fun fetchTextFromUrl(url: String): String {
+        val lower = url.lowercase()
+        return if (lower.endsWith(".txt") || lower.endsWith(".md") || lower.endsWith(".yaml") || lower.endsWith(".yml") || lower.endsWith(".json")) {
+            fetchString(url)
+        } else {
+            val doc = fetchDocument(url)
+            val body = doc.body()
+            body.select("script, style, nav, footer, header").remove()
+            body.text()
+        }
+    }
+
+    suspend fun fetchImagesFromUrl(url: String): List<String> {
+        return try {
+            val doc = fetchDocument(url)
+            val images = doc.select("img")
+                .mapNotNull { el ->
+                    val src = el.absUrl("src").ifEmpty { el.absUrl("data-src") }.ifEmpty { el.attr("src") }
+                    if (src.isNotBlank()) src else null
+                }
+                .distinct()
+            images
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun guessTitleFromUrl(url: String): String {
+        return try {
+            val path = url.substringAfterLast('/').substringBefore('?')
+            if (path.isBlank()) url.substringAfter("://").substringBefore('/')
+            else path
+        } catch (e: Exception) {
+            "URL Import"
+        }
+    }
+
+    fun splitTextIntoChapters(content: String): List<Pair<String, String>> {
+        val chapterPattern = Regex(
+            "^\\s*(第[零一二三四五六七八九十百千万\\d]+[章节回卷]|Chapter\\s+\\d+|CHAPTER\\s+\\d+).*",
+            RegexOption.MULTILINE
+        )
+        val matches = chapterPattern.findAll(content).toList()
+        if (matches.isEmpty()) {
+            val chunkSize = 5000
+            return content.chunked(chunkSize).mapIndexed { index, chunk ->
+                "第${index + 1}部分" to chunk
+            }
+        }
+        return matches.mapIndexed { index, match ->
+            val start = match.range.first
+            val end = if (index + 1 < matches.size) matches[index + 1].range.first else content.length
+            match.value.trim() to content.substring(start, end).trim()
+        }
+    }
 }

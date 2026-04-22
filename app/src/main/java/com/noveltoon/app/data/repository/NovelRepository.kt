@@ -110,4 +110,30 @@ class NovelRepository(context: Context) {
         chapterDao.insertAll(entities)
         novelDao.update(novel.copy(totalChapters = entities.size))
     }
+
+    suspend fun importFromUrl(url: String): Long {
+        val fetched = parser.fetchTextFromUrl(url)
+        val title = parser.guessTitleFromUrl(url)
+        val novel = Novel(
+            title = title,
+            sourceUrl = url,
+            sourceName = "URL Import",
+            isLocal = true,
+            localPath = url
+        )
+        val novelId = novelDao.insert(novel)
+        val chapters = parser.splitTextIntoChapters(fetched).mapIndexed { index, pair ->
+            NovelChapter(
+                novelId = novelId,
+                title = pair.first,
+                url = "",
+                index = index,
+                content = pair.second,
+                isCached = true
+            )
+        }
+        chapterDao.insertAll(chapters)
+        novelDao.update(novelDao.getNovelById(novelId)!!.copy(totalChapters = chapters.size))
+        return novelId
+    }
 }

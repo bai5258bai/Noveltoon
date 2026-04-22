@@ -90,4 +90,26 @@ class ComicRepository(context: Context) {
         chapterDao.insertAll(entities)
         comicDao.update(comic.copy(totalChapters = entities.size))
     }
+
+    suspend fun importFromUrl(url: String): Long {
+        val images = parser.fetchImagesFromUrl(url)
+        val title = parser.guessTitleFromUrl(url)
+        val comic = Comic(
+            title = title,
+            sourceUrl = url,
+            sourceName = "URL Import",
+            isLocal = true,
+            localPath = url,
+            totalChapters = 1
+        )
+        val comicId = comicDao.insert(comic)
+        val chapter = ComicChapter(
+            comicId = comicId,
+            title = title,
+            url = images.joinToString("\n"),
+            index = 0
+        )
+        chapterDao.insertAll(listOf(chapter))
+        return comicId
+    }
 }

@@ -105,4 +105,12 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
             repository.saveChapters(chapters.map { it.copy(novelId = id) })
         }
     }
+
+    fun importFromUrl(url: String) {
+        viewModelScope.launch {
+            try {
+                repository.importFromUrl(url)
+            } catch (_: Exception) {}
+        }
+    }
 }

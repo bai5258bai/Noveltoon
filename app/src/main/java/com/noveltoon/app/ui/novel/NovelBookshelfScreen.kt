@@ -3,15 +3,20 @@ package com.noveltoon.app.ui.novel
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.*
@@ -19,16 +24,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.noveltoon.app.R
 import com.noveltoon.app.data.entity.Novel
+import com.noveltoon.app.ui.theme.BrandBackground
+import com.noveltoon.app.ui.theme.BrandBackgroundTop
 import com.noveltoon.app.util.FileImporter
 import kotlinx.coroutines.launch
 
@@ -44,6 +57,7 @@ fun NovelBookshelfScreen(
     var showMenu by remember { mutableStateOf(false) }
     var selectedNovel by remember { mutableStateOf<Novel?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showUrlImportDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -60,79 +74,68 @@ fun NovelBookshelfScreen(
         }
     }
 
+    val gradientBrush = Brush.verticalGradient(
+        colors = listOf(BrandBackgroundTop, BrandBackground)
+    )
+
     Scaffold(
+        modifier = Modifier.background(gradientBrush),
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets.statusBars,
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.tab_novel)) },
-                actions = {
-                    IconButton(onClick = onNavigateToSearch) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+            BookshelfTopBar(
+                title = stringResource(R.string.tab_novel),
+                subtitle = stringResource(R.string.novel_subtitle),
+                onSearch = onNavigateToSearch,
+                onRefresh = {
+                    novels.forEach { novel ->
+                        if (!novel.isLocal) viewModel.refreshChapters(novel.id)
                     }
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add))
-                    }
-                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.import_local_file)) },
-                            onClick = {
-                                showMenu = false
-                                filePickerLauncher.launch(arrayOf("text/plain", "application/epub+zip"))
-                            },
-                            leadingIcon = { Icon(Icons.Default.FileOpen, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.manage_sources)) },
-                            onClick = {
-                                showMenu = false
-                                onNavigateToSourceManage()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Source, null) }
-                        )
-                    }
+                },
+                onAdd = { showMenu = true },
+                showMenu = showMenu,
+                onMenuDismiss = { showMenu = false },
+                onImportLocal = {
+                    showMenu = false
+                    filePickerLauncher.launch(arrayOf("text/plain", "application/epub+zip", "*/*"))
+                },
+                onImportUrl = {
+                    showMenu = false
+                    showUrlImportDialog = true
+                },
+                onManageSources = {
+                    showMenu = false
+                    onNavigateToSourceManage()
                 }
             )
         }
     ) { padding ->
-        if (novels.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        stringResource(R.string.empty_bookshelf),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    FilledTonalButton(onClick = onNavigateToSearch) {
-                        Icon(Icons.Default.Search, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.search_novel))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradientBrush)
+                .padding(padding)
+        ) {
+            if (novels.isEmpty()) {
+                NovelEmptyState(onSearch = onNavigateToSearch)
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 100.dp),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(novels, key = { it.id }) { novel ->
+                        NovelGridItem(
+                            novel = novel,
+                            onClick = { onNavigateToReader(novel.id) },
+                            onLongClick = {
+                                selectedNovel = novel
+                                showDeleteDialog = true
+                            }
+                        )
                     }
-                }
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 100.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(novels, key = { it.id }) { novel ->
-                    NovelGridItem(
-                        novel = novel,
-                        onClick = { onNavigateToReader(novel.id) },
-                        onLongClick = {
-                            selectedNovel = novel
-                            showDeleteDialog = true
-                        }
-                    )
                 }
             }
         }
@@ -161,8 +164,177 @@ fun NovelBookshelfScreen(
                         else stringResource(R.string.mark_completed)
                     )
                 }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    if (showUrlImportDialog) {
+        UrlImportDialog(
+            title = stringResource(R.string.import_from_url_novel),
+            onDismiss = { showUrlImportDialog = false },
+            onConfirm = { url ->
+                showUrlImportDialog = false
+                viewModel.importFromUrl(url)
             }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BookshelfTopBar(
+    title: String,
+    subtitle: String,
+    onSearch: () -> Unit,
+    onRefresh: () -> Unit,
+    onAdd: () -> Unit,
+    showMenu: Boolean,
+    onMenuDismiss: () -> Unit,
+    onImportLocal: () -> Unit,
+    onImportUrl: () -> Unit,
+    onManageSources: () -> Unit
+) {
+    Surface(
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            RoundIconButton(
+                icon = Icons.Default.Refresh,
+                contentDescription = stringResource(R.string.refresh),
+                onClick = onRefresh
+            )
+            Spacer(Modifier.width(8.dp))
+            RoundIconButton(
+                icon = Icons.Default.Search,
+                contentDescription = stringResource(R.string.search),
+                onClick = onSearch
+            )
+            Spacer(Modifier.width(8.dp))
+            Box {
+                RoundIconButton(
+                    icon = Icons.Default.Add,
+                    contentDescription = stringResource(R.string.add),
+                    onClick = onAdd
+                )
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = onMenuDismiss,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.import_local_file)) },
+                        onClick = onImportLocal,
+                        leadingIcon = { Icon(Icons.Default.FileOpen, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.import_from_url)) },
+                        onClick = onImportUrl,
+                        leadingIcon = { Icon(Icons.Default.Link, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.manage_sources)) },
+                        onClick = onManageSources,
+                        leadingIcon = { Icon(Icons.Default.Source, null) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RoundIconButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 1.dp,
+        modifier = Modifier.size(40.dp)
+    ) {
+        IconButton(onClick = onClick, modifier = Modifier.fillMaxSize()) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun NovelEmptyState(onSearch: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.illustration_novel_empty),
+            contentDescription = null,
+            modifier = Modifier.size(240.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.height(24.dp))
+        Text(
+            text = stringResource(R.string.empty_bookshelf),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.empty_bookshelf_desc),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(28.dp))
+        Button(
+            onClick = onSearch,
+            shape = RoundedCornerShape(28.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            ),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp)
+        ) {
+            Icon(
+                Icons.Default.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(R.string.search_novel),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -177,17 +349,18 @@ fun NovelGridItem(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
+            .clip(RoundedCornerShape(12.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(3f / 4f),
-            shape = MaterialTheme.shapes.medium,
+            shape = RoundedCornerShape(12.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant
-            )
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             if (novel.coverUrl.isNotBlank()) {
                 AsyncImage(
@@ -201,21 +374,32 @@ fun NovelGridItem(
                 )
             } else {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.secondaryContainer
+                                )
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         novel.title.take(4),
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             novel.title,
             style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
         )
@@ -229,4 +413,51 @@ fun NovelGridItem(
             )
         }
     }
+}
+
+@Composable
+fun UrlImportDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var url by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.url_import_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.url)) },
+                    placeholder = { Text("https://...") },
+                    singleLine = false,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (url.isNotBlank()) onConfirm(url.trim())
+            }) {
+                Text(stringResource(R.string.import_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+        shape = RoundedCornerShape(20.dp)
+    )
 }
