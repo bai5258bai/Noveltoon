@@ -9,6 +9,7 @@ import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import java.net.URLEncoder
+import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
 
 data class SearchResult(
@@ -33,22 +34,50 @@ class SourceParser {
         .followRedirects(true)
         .build()
 
-    private suspend fun fetchDocument(url: String): Document = withContext(Dispatchers.IO) {
+    private suspend fun fetchDocument(url: String, encoding: String = ""): Document = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
             .build()
         val response = client.newCall(request).execute()
-        Jsoup.parse(response.body?.string() ?: "", url)
+        val bytes = response.body?.bytes() ?: byteArrayOf()
+        val html = decodeWithCharset(bytes, encoding, response.header("Content-Type"))
+        Jsoup.parse(html, url)
     }
 
-    private suspend fun fetchString(url: String): String = withContext(Dispatchers.IO) {
+    private suspend fun fetchString(url: String, encoding: String = ""): String = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(url)
             .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
             .build()
         val response = client.newCall(request).execute()
-        response.body?.string() ?: ""
+        val bytes = response.body?.bytes() ?: return@withContext ""
+        decodeWithCharset(bytes, encoding, response.header("Content-Type"))
+    }
+
+    private fun decodeWithCharset(bytes: ByteArray, hint: String, contentType: String?): String {
+        val candidates = buildList<String> {
+            if (hint.isNotBlank()) add(hint)
+            if (contentType != null) {
+                val match = Regex("charset=([^;\\s]+)", RegexOption.IGNORE_CASE).find(contentType)
+                match?.groupValues?.getOrNull(1)?.let { add(it) }
+            }
+            // Check meta in first 1KB
+            val head = String(bytes, 0, minOf(1024, bytes.size), Charsets.ISO_8859_1)
+            val metaMatch = Regex("charset=[\"']?([^\"'\\s>/]+)", RegexOption.IGNORE_CASE).find(head)
+            metaMatch?.groupValues?.getOrNull(1)?.let { add(it) }
+            add("UTF-8")
+            add("GBK")
+        }
+        for (name in candidates) {
+            try {
+                val charset = Charset.forName(name.trim())
+                return String(bytes, charset)
+            } catch (_: Exception) {}
+        }
+        return String(bytes, Charsets.UTF_8)
     }
 
     private fun applyRule(doc: Document, rule: String, baseUrl: String = ""): List<String> {
@@ -85,13 +114,14 @@ class SourceParser {
 
     suspend fun searchNovel(source: BookSource, keyword: String): List<SearchResult> {
         return try {
-            val encodedKeyword = URLEncoder.encode(keyword, "UTF-8")
+            val searchEncoding = source.searchEncoding.ifBlank { "UTF-8" }
+            val encodedKeyword = URLEncoder.encode(keyword, searchEncoding)
             val searchUrl = source.searchUrl
                 .replace("{{keyword}}", encodedKeyword)
                 .replace("{{key}}", encodedKeyword)
                 .let { if (!it.startsWith("http")) source.baseUrl.trimEnd('/') + "/" + it.trimStart('/') else it }
 
-            val doc = fetchDocument(searchUrl)
+            val doc = fetchDocument(searchUrl, searchEncoding)
             val listElements = if (source.searchListRule.isNotBlank()) {
                 doc.select(source.searchListRule)
             } else {
@@ -122,7 +152,7 @@ class SourceParser {
         return try {
             val url = if (bookUrl.startsWith("http")) bookUrl
             else source.baseUrl.trimEnd('/') + "/" + bookUrl.trimStart('/')
-            val doc = fetchDocument(url)
+            val doc = fetchDocument(url, source.searchEncoding.ifBlank { "UTF-8" })
             val elements = if (source.chapterListRule.isNotBlank()) {
                 doc.select(source.chapterListRule)
             } else return emptyList()
@@ -143,14 +173,15 @@ class SourceParser {
         return try {
             val url = if (chapterUrl.startsWith("http")) chapterUrl
             else source.baseUrl.trimEnd('/') + "/" + chapterUrl.trimStart('/')
-            val doc = fetchDocument(url)
+            val enc = source.searchEncoding.ifBlank { "UTF-8" }
+            val doc = fetchDocument(url, enc)
             var content = applySingleRule(doc, source.contentRule)
 
             if (source.contentNextPageRule.isNotBlank()) {
                 var nextUrl = applySingleRule(doc, source.contentNextPageRule, source.baseUrl)
                 var pages = 0
                 while (nextUrl.isNotBlank() && pages < 10) {
-                    val nextDoc = fetchDocument(nextUrl)
+                    val nextDoc = fetchDocument(nextUrl, enc)
                     content += "\n" + applySingleRule(nextDoc, source.contentRule)
                     nextUrl = applySingleRule(nextDoc, source.contentNextPageRule, source.baseUrl)
                     pages++
@@ -171,13 +202,14 @@ class SourceParser {
 
     suspend fun searchComic(source: ComicSource, keyword: String): List<SearchResult> {
         return try {
-            val encodedKeyword = URLEncoder.encode(keyword, "UTF-8")
+            val searchEncoding = source.searchEncoding.ifBlank { "UTF-8" }
+            val encodedKeyword = URLEncoder.encode(keyword, searchEncoding)
             val searchUrl = source.searchUrl
                 .replace("{{keyword}}", encodedKeyword)
                 .replace("{{key}}", encodedKeyword)
                 .let { if (!it.startsWith("http")) source.baseUrl.trimEnd('/') + "/" + it.trimStart('/') else it }
 
-            val doc = fetchDocument(searchUrl)
+            val doc = fetchDocument(searchUrl, searchEncoding)
             val listElements = if (source.searchListRule.isNotBlank()) {
                 doc.select(source.searchListRule)
             } else {
@@ -234,6 +266,62 @@ class SourceParser {
                 .filter { it.isNotBlank() }
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    suspend fun fetchTextFromUrl(url: String): String {
+        val lower = url.lowercase()
+        return if (lower.endsWith(".txt") || lower.endsWith(".md") || lower.endsWith(".yaml") || lower.endsWith(".yml") || lower.endsWith(".json")) {
+            fetchString(url)
+        } else {
+            val doc = fetchDocument(url)
+            val body = doc.body()
+            body.select("script, style, nav, footer, header").remove()
+            body.text()
+        }
+    }
+
+    suspend fun fetchImagesFromUrl(url: String): List<String> {
+        return try {
+            val doc = fetchDocument(url)
+            val images = doc.select("img")
+                .mapNotNull { el ->
+                    val src = el.absUrl("src").ifEmpty { el.absUrl("data-src") }.ifEmpty { el.attr("src") }
+                    if (src.isNotBlank()) src else null
+                }
+                .distinct()
+            images
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun guessTitleFromUrl(url: String): String {
+        return try {
+            val path = url.substringAfterLast('/').substringBefore('?')
+            if (path.isBlank()) url.substringAfter("://").substringBefore('/')
+            else path
+        } catch (e: Exception) {
+            "URL Import"
+        }
+    }
+
+    fun splitTextIntoChapters(content: String): List<Pair<String, String>> {
+        val chapterPattern = Regex(
+            "^\\s*(第[零一二三四五六七八九十百千万\\d]+[章节回卷]|Chapter\\s+\\d+|CHAPTER\\s+\\d+).*",
+            RegexOption.MULTILINE
+        )
+        val matches = chapterPattern.findAll(content).toList()
+        if (matches.isEmpty()) {
+            val chunkSize = 5000
+            return content.chunked(chunkSize).mapIndexed { index, chunk ->
+                "第${index + 1}部分" to chunk
+            }
+        }
+        return matches.mapIndexed { index, match ->
+            val start = match.range.first
+            val end = if (index + 1 < matches.size) matches[index + 1].range.first else content.length
+            match.value.trim() to content.substring(start, end).trim()
         }
     }
 }

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="240dp"
+    android:viewportWidth="240"
+    android:viewportHeight="240">
+
+    <!-- Background circle -->
+    <path
+        android:fillColor="#F0EDF9"
+        android:pathData="M120,20 C175,20 220,65 220,120 C220,175 175,220 120,220 C65,220 20,175 20,120 C20,65 65,20 120,20 Z" />
+
+    <!-- Clouds -->
+    <path
+        android:fillColor="#E4DFF4"
+        android:pathData="M35,75 C35,70 40,66 45,66 C46,62 50,60 54,60 C58,60 62,62 63,66 C68,66 73,70 73,75 C73,80 68,84 63,84 L45,84 C40,84 35,80 35,75 Z" />
+
+    <path
+        android:fillColor="#E4DFF4"
+        android:pathData="M175,70 C175,66 178,63 182,63 C183,60 186,58 189,58 C192,58 195,60 196,63 C200,63 203,66 203,70 C203,74 200,77 196,77 L182,77 C178,77 175,74 175,70 Z" />
+
+    <!-- Stars -->
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M185,100 L186.5,103.5 L190,105 L186.5,106.5 L185,110 L183.5,106.5 L180,105 L183.5,103.5 Z" />
+
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M40,130 L41,132.5 L43.5,133.5 L41,134.5 L40,137 L39,134.5 L36.5,133.5 L39,132.5 Z" />
+
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M200,155 L201,157.5 L203.5,158.5 L201,159.5 L200,162 L199,159.5 L196.5,158.5 L199,157.5 Z" />
+
+    <!-- Back frame -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1.5"
+        android:pathData="M75,65 L165,65 C168,65 170,67 170,70 L170,135 C170,138 168,140 165,140 L75,140 C72,140 70,138 70,135 L70,70 C70,67 72,65 75,65 Z" />
+
+    <!-- Plant pot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1.5"
+        android:pathData="M52,145 L68,145 L66,160 L54,160 Z" />
+
+    <!-- Plant leaves -->
+    <path
+        android:fillColor="#B4AEE8"
+        android:pathData="M60,145 C60,135 54,128 50,125 C52,132 55,140 60,145 Z" />
+
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M60,145 C60,135 66,128 70,125 C68,132 65,140 60,145 Z" />
+
+    <path
+        android:fillColor="#8479D6"
+        android:pathData="M60,145 C60,135 60,128 60,122 C62,130 62,138 60,145 Z" />
+
+    <!-- Books standing -->
+    <path
+        android:fillColor="#C4BAFF"
+        android:pathData="M125,125 L135,125 L135,160 L125,160 Z" />
+
+    <path
+        android:fillColor="#A598ED"
+        android:pathData="M137,125 L147,125 L147,160 L137,160 Z" />
+
+    <path
+        android:fillColor="#8479D6"
+        android:pathData="M149,130 L157,130 L157,160 L149,160 Z" />
+
+    <!-- Open book base -->
+    <path
+        android:fillColor="#7A6DD8"
+        android:pathData="M60,160 L180,160 L185,170 L175,195 L65,195 L55,170 Z" />
+
+    <!-- Open book pages left -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1"
+        android:pathData="M65,165 C75,162 95,162 118,167 L118,190 C95,186 75,187 65,190 Z" />
+
+    <!-- Open book pages right -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:strokeColor="#C4BAFF"
+        android:strokeWidth="1"
+        android:pathData="M175,165 C165,162 145,162 122,167 L122,190 C145,186 165,187 175,190 Z" />
+
+    <!-- Lines on left page -->
+    <path
+        android:strokeColor="#E4DFF4"
+        android:strokeWidth="1"
+        android:pathData="M72,172 L112,172 M72,178 L110,178 M72,184 L108,184" />
+
+    <!-- Lines on right page -->
+    <path
+        android:strokeColor="#E4DFF4"
+        android:strokeWidth="1"
+        android:pathData="M128,172 L168,172 M130,178 L166,178 M132,184 L164,184" />
+
+    <!-- Bookmark -->
+    <path
+        android:fillColor="#7A6DD8"
+        android:pathData="M115,190 L125,190 L125,205 L120,200 L115,205 Z" />
+</vector>

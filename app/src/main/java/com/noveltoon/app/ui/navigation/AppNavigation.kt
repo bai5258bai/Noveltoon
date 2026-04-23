@@ -9,12 +9,12 @@ import androidx.navigation.navArgument
 import com.noveltoon.app.ui.comic.ComicBookshelfScreen
 import com.noveltoon.app.ui.comic.ComicReaderScreen
 import com.noveltoon.app.ui.comic.ComicSearchScreen
-import com.noveltoon.app.ui.comic.ComicSourceManageScreen
 import com.noveltoon.app.ui.novel.NovelBookshelfScreen
 import com.noveltoon.app.ui.novel.NovelReaderScreen
 import com.noveltoon.app.ui.novel.NovelSearchScreen
-import com.noveltoon.app.ui.novel.NovelSourceManageScreen
 import com.noveltoon.app.ui.settings.SettingsScreen
+import com.noveltoon.app.ui.sources.BookSourceManageScreen
+import com.noveltoon.app.ui.sources.ComicSourceManageScreen as NewComicSourceManageScreen
 
 @Composable
 fun AppNavigation(navController: NavHostController) {
@@ -55,7 +55,7 @@ fun AppNavigation(navController: NavHostController) {
         }
 
         composable(Screen.NovelSourceManage.route) {
-            NovelSourceManageScreen(
+            BookSourceManageScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -98,13 +98,16 @@ fun AppNavigation(navController: NavHostController) {
         }
 
         composable(Screen.ComicSourceManage.route) {
-            ComicSourceManageScreen(
+            NewComicSourceManageScreen(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(Screen.Settings.route) {
-            SettingsScreen()
+            SettingsScreen(
+                onNavigateToBookSources = { navController.navigate(Screen.NovelSourceManage.route) },
+                onNavigateToComicSources = { navController.navigate(Screen.ComicSourceManage.route) }
+            )
         }
     }
 }

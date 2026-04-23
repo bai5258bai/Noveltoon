@@ -28,7 +28,7 @@ class AppPreferences(private val context: Context) {
     val novelLineSpacing: Flow<Float> = context.dataStore.data.map { it[NOVEL_LINE_SPACING] ?: 1.5f }
     val novelPageMargin: Flow<Int> = context.dataStore.data.map { it[NOVEL_PAGE_MARGIN] ?: 16 }
     val novelBackground: Flow<Int> = context.dataStore.data.map { it[NOVEL_BACKGROUND] ?: 0 }
-    val novelReadingMode: Flow<Int> = context.dataStore.data.map { it[NOVEL_READING_MODE] ?: 0 }
+    val novelReadingMode: Flow<Int> = context.dataStore.data.map { it[NOVEL_READING_MODE] ?: 1 }
     val comicReadingDirection: Flow<Int> = context.dataStore.data.map { it[COMIC_READING_DIRECTION] ?: 2 }
     val wifiOnlyOriginal: Flow<Boolean> = context.dataStore.data.map { it[WIFI_ONLY_ORIGINAL] ?: false }
     val autoClearCacheDays: Flow<Int> = context.dataStore.data.map { it[AUTO_CLEAR_CACHE_DAYS] ?: 7 }

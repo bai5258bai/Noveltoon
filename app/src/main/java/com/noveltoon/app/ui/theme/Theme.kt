@@ -1,10 +1,8 @@
 package com.noveltoon.app.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 
 private val LightColorScheme = lightColorScheme(
     primary = Primary,
@@ -23,7 +21,9 @@ private val LightColorScheme = lightColorScheme(
     onSurface = OnSurface,
     surfaceVariant = SurfaceVariant,
     onSurfaceVariant = OnSurfaceVariant,
-    outline = Outline
+    outline = Outline,
+    background = Background,
+    onBackground = OnBackground
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -43,7 +43,9 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = DarkOnSurface,
     surfaceVariant = DarkSurfaceVariant,
     onSurfaceVariant = DarkOnSurfaceVariant,
-    outline = DarkOutline
+    outline = DarkOutline,
+    background = DarkBackground,
+    onBackground = DarkOnSurface
 )
 
 @Composable
@@ -57,18 +59,12 @@ fun NovelToonTheme(
         else -> isSystemInDarkTheme()
     }
 
-    val colorScheme = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
+        shapes = NovelToonShapes,
         content = content
     )
 }

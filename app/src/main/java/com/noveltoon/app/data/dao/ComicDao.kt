@@ -32,4 +32,7 @@ interface ComicDao {
 
     @Query("UPDATE comics SET hasUnread = :hasUnread WHERE id = :id")
     suspend fun updateUnread(id: Long, hasUnread: Boolean)
+
+    @Query("UPDATE comics SET totalReadingTimeMs = totalReadingTimeMs + :addMs, lastReadTime = :time WHERE id = :id")
+    suspend fun addReadingTime(id: Long, addMs: Long, time: Long = System.currentTimeMillis())
 }

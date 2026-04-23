@@ -3,8 +3,10 @@ package com.noveltoon.app.ui.comic
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.noveltoon.app.data.AppDatabase
 import com.noveltoon.app.data.entity.Comic
 import com.noveltoon.app.data.entity.ComicChapter
+import com.noveltoon.app.data.entity.ComicSource
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.repository.ComicRepository
 import kotlinx.coroutines.flow.*
@@ -12,6 +14,10 @@ import kotlinx.coroutines.launch
 
 class ComicViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ComicRepository(application)
+    private val comicSourceDao = AppDatabase.getInstance(application).comicSourceDao()
+
+    val comicSources: StateFlow<List<ComicSource>> = comicSourceDao.getAllSources()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val comics: StateFlow<List<Comic>> = repository.getAllComics()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -92,9 +98,49 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val id = repository.addComic(comic)
             val chaptersWithId = chapters.map { it.copy(comicId = id) }
-            repository.getChaptersList(id)
             val db = com.noveltoon.app.data.AppDatabase.getInstance(getApplication())
             db.comicChapterDao().insertAll(chaptersWithId)
+        }
+    }
+
+    fun refreshChapters(comicId: Long) {
+        viewModelScope.launch {
+            repository.refreshChapters(comicId)
+            _chapters.value = repository.getChaptersList(comicId)
+        }
+    }
+
+    private val _importState = MutableStateFlow<String?>(null)
+    val importState: StateFlow<String?> = _importState.asStateFlow()
+
+    fun importFromUrl(url: String) {
+        viewModelScope.launch {
+            _importState.value = "loading"
+            try {
+                val id = repository.importFromUrl(url)
+                _importState.value = if (id > 0) "success" else "failed"
+            } catch (e: Exception) {
+                _importState.value = "failed"
+            }
+        }
+    }
+
+    fun clearImportState() {
+        _importState.value = null
+    }
+
+    fun addReadingTime(id: Long, ms: Long) {
+        if (ms <= 0) return
+        viewModelScope.launch { repository.addReadingTime(id, ms) }
+    }
+
+    fun switchSource(comicId: Long, newSourceName: String) {
+        viewModelScope.launch {
+            try {
+                repository.switchSource(comicId, newSourceName)
+                _currentComic.value = repository.getComicById(comicId)
+                _chapters.value = repository.getChaptersList(comicId)
+            } catch (_: Exception) {}
         }
     }
 }

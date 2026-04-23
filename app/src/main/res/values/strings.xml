@@ -6,21 +6,63 @@
     <string name="tab_novel">小说</string>
     <string name="tab_comic">漫画</string>
     <string name="tab_settings">设置</string>
+    <string name="novel_subtitle">沉浸阅读 · 精彩无限</string>
+    <string name="comic_subtitle">畅读漫画 · 随心翻阅</string>
 
     <!-- Common -->
     <string name="search">搜索</string>
     <string name="add">添加</string>
+    <string name="refresh">刷新</string>
     <string name="delete">删除</string>
     <string name="cancel">取消</string>
     <string name="confirm">确定</string>
     <string name="ok">好的</string>
     <string name="delete_confirm">确定要删除吗？</string>
+    <string name="url">链接地址</string>
+    <string name="direction">方向</string>
+    <string name="author_unknown">未知作者</string>
+    <string name="read_to">已读至 %s</string>
+    <string name="unread">尚未阅读</string>
+    <string name="total_reading">累计阅读 %s</string>
+    <string name="select_all">全选</string>
+    <string name="invert_selection">反选</string>
+    <string name="search_sources">搜索源</string>
+    <string name="switch_source">切换源</string>
+    <string name="builtin_badge">内置</string>
+    <string name="deleted_count">已删除 %d 个</string>
+    <string name="import_source_hint">支持直接粘贴 JSON 或输入指向 JSON 文件的 URL（如 GitHub raw 链接）</string>
+    <string name="paste_json_or_url">JSON 内容或 URL</string>
+    <string name="import_success">导入成功：%d 个</string>
+    <string name="import_failed">导入失败：内容格式不正确或网络错误</string>
+    <string name="import_failed_detail">导入失败：%s</string>
+    <string name="import_url_success">导入成功</string>
+    <string name="import_url_failed">导入失败，请检查网址是否可访问</string>
+    <string name="importing">正在导入...</string>
+    <string name="builtin_source_manage">内置源管理</string>
+    <string name="builtin_source_manage_desc">查看与启停应用自带的书源 / 图源</string>
+    <string name="password_required">需要密码</string>
+    <string name="password_hint">输入密码查看内置源</string>
+    <string name="password_wrong">密码不正确</string>
+    <string name="builtin_book_sources">内置书源</string>
+    <string name="builtin_comic_sources">内置图源</string>
+    <string name="check_update">检查更新</string>
+    <string name="checking_update">正在检查...</string>
+    <string name="update_latest">已是最新版本</string>
+    <string name="update_available">发现新版本：%s</string>
+    <string name="update_failed">检查更新失败</string>
+    <string name="goto_download">前往下载</string>
+    <string name="later">稍后</string>
 
     <!-- Novel Bookshelf -->
     <string name="empty_bookshelf">书架空空如也</string>
+    <string name="empty_bookshelf_desc">快去搜索喜欢的小说，开启精彩阅读之旅吧</string>
     <string name="search_novel">搜索小说</string>
     <string name="search_hint_novel">输入书名搜索</string>
     <string name="import_local_file">导入本地文件</string>
+    <string name="import_from_url">从网址导入</string>
+    <string name="import_from_url_novel">从网址导入小说</string>
+    <string name="import_from_url_comic">从网址导入漫画</string>
+    <string name="url_import_hint">输入 txt 文件或文章网址，将自动提取正文并按章节分割</string>
     <string name="manage_sources">管理书源</string>
     <string name="mark_completed">标记完结</string>
     <string name="mark_reading">标记在读</string>
@@ -29,7 +71,10 @@
     <string name="prev_chapter">上一章</string>
     <string name="next_chapter">下一章</string>
     <string name="chapter_list">目录</string>
-    <string name="reader_settings">阅读设置</string>
+    <string name="reader_settings">设置</string>
+    <string name="reading_mode">阅读模式</string>
+    <string name="reading_mode_horizontal">左右翻页</string>
+    <string name="reading_mode_vertical">上下滚动</string>
     <string name="font_size">字体大小</string>
     <string name="line_spacing">行间距</string>
     <string name="page_margin">页边距</string>
@@ -42,6 +87,7 @@
 
     <!-- Comic Bookshelf -->
     <string name="empty_comic_shelf">漫画架空空如也</string>
+    <string name="empty_comic_shelf_desc">快去搜索喜欢的漫画，开启轻松愉快的阅读时光</string>
     <string name="search_comic">搜索漫画</string>
     <string name="search_hint_comic">输入漫画名搜索</string>
     <string name="import_local_comic">导入本地漫画</string>
@@ -57,9 +103,12 @@
 
     <!-- Settings -->
     <string name="settings_display">显示</string>
+    <string name="settings_sources">书源 / 图源</string>
     <string name="settings_network">网络</string>
     <string name="settings_storage">存储</string>
     <string name="settings_backup">备份与恢复</string>
+    <string name="manage_book_sources_desc">管理小说搜索来源</string>
+    <string name="manage_comic_sources_desc">管理漫画搜索来源</string>
     <string name="theme_mode">主题模式</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
@@ -84,5 +133,6 @@
     <string name="about">关于</string>
     <string name="about_personal_use">个人使用版本</string>
     <string name="about_version">版本 %s</string>
+    <string name="about_developer">开发者：Bai.</string>
     <string name="about_disclaimer">仅供个人使用，无联网商用行为。所有内容来自本地文件或手动输入的网络地址。</string>
 </resources>

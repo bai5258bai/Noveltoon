@@ -28,6 +28,8 @@ class ComicRepository(context: Context) {
     suspend fun updateReadProgress(id: Long, chapterIndex: Int, pageIndex: Int, chapterTitle: String) =
         comicDao.updateReadProgress(id, chapterIndex, pageIndex, chapterTitle)
 
+    suspend fun addReadingTime(id: Long, ms: Long) = comicDao.addReadingTime(id, ms)
+
     fun getChapters(comicId: Long): Flow<List<ComicChapter>> = chapterDao.getChapters(comicId)
 
     suspend fun getChaptersList(comicId: Long): List<ComicChapter> = chapterDao.getChaptersList(comicId)
@@ -75,7 +77,14 @@ class ComicRepository(context: Context) {
         val comic = comicDao.getComicById(comicId) ?: return emptyList()
         val chapters = chapterDao.getChaptersList(comicId)
         val chapter = chapters.getOrNull(chapterIndex) ?: return emptyList()
-        val source = comicSourceDao.getEnabledSources().find { it.name == comic.sourceName } ?: return emptyList()
+
+        // URL-imported comic stores images as newline-separated list in url
+        if (comic.sourceName == "URL Import") {
+            return chapter.url.split("\n").filter { it.isNotBlank() }
+        }
+
+        val source = comicSourceDao.getEnabledSources().find { it.name == comic.sourceName }
+            ?: return emptyList()
         return parser.getComicImages(source, chapter.url)
     }
 
@@ -89,5 +98,50 @@ class ComicRepository(context: Context) {
         chapterDao.deleteByComicId(comicId)
         chapterDao.insertAll(entities)
         comicDao.update(comic.copy(totalChapters = entities.size))
+    }
+
+    suspend fun switchSource(comicId: Long, newSourceName: String) {
+        val comic = comicDao.getComicById(comicId) ?: return
+        val newSource = comicSourceDao.getEnabledSources().find { it.name == newSourceName } ?: return
+        val results = parser.searchComic(newSource, comic.title)
+        val match = results.firstOrNull { it.title == comic.title } ?: results.firstOrNull() ?: return
+        comicDao.update(
+            comic.copy(
+                sourceUrl = match.url,
+                sourceName = newSource.name,
+                coverUrl = match.coverUrl.ifBlank { comic.coverUrl },
+                author = match.author.ifBlank { comic.author }
+            )
+        )
+        val chapters = parser.getComicChapters(newSource, match.url)
+        val entities = chapters.mapIndexed { index, info ->
+            ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+        }
+        chapterDao.deleteByComicId(comicId)
+        chapterDao.insertAll(entities)
+        comicDao.update(comicDao.getComicById(comicId)!!.copy(totalChapters = entities.size))
+    }
+
+    suspend fun importFromUrl(url: String): Long {
+        val images = parser.fetchImagesFromUrl(url)
+        if (images.isEmpty()) return -1
+        val title = parser.guessTitleFromUrl(url)
+        val comic = Comic(
+            title = title,
+            sourceUrl = url,
+            sourceName = "URL Import",
+            isLocal = true,
+            localPath = url,
+            totalChapters = 1
+        )
+        val comicId = comicDao.insert(comic)
+        val chapter = ComicChapter(
+            comicId = comicId,
+            title = title,
+            url = images.joinToString("\n"),
+            index = 0
+        )
+        chapterDao.insertAll(listOf(chapter))
+        return comicId
     }
 }

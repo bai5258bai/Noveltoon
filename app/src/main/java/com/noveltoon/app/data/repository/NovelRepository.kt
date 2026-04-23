@@ -30,6 +30,8 @@ class NovelRepository(context: Context) {
     suspend fun updateReadProgress(id: Long, chapterIndex: Int, position: Int, chapterTitle: String) =
         novelDao.updateReadProgress(id, chapterIndex, position, chapterTitle)
 
+    suspend fun addReadingTime(id: Long, ms: Long) = novelDao.addReadingTime(id, ms)
+
     fun getChapters(novelId: Long): Flow<List<NovelChapter>> = chapterDao.getChapters(novelId)
 
     suspend fun getChaptersList(novelId: Long): List<NovelChapter> = chapterDao.getChaptersList(novelId)
@@ -109,5 +111,54 @@ class NovelRepository(context: Context) {
         chapterDao.deleteByNovelId(novelId)
         chapterDao.insertAll(entities)
         novelDao.update(novel.copy(totalChapters = entities.size))
+    }
+
+    suspend fun switchSource(novelId: Long, newSourceName: String) {
+        val novel = novelDao.getNovelById(novelId) ?: return
+        val newSource = bookSourceDao.getEnabledSources().find { it.name == newSourceName } ?: return
+        val results = parser.searchNovel(newSource, novel.title)
+        val match = results.firstOrNull { it.title == novel.title } ?: results.firstOrNull() ?: return
+        novelDao.update(
+            novel.copy(
+                sourceUrl = match.url,
+                sourceName = newSource.name,
+                coverUrl = match.coverUrl.ifBlank { novel.coverUrl },
+                author = match.author.ifBlank { novel.author }
+            )
+        )
+        val chapters = parser.getNovelChapters(newSource, match.url)
+        val entities = chapters.mapIndexed { index, info ->
+            NovelChapter(novelId = novelId, title = info.title, url = info.url, index = index)
+        }
+        chapterDao.deleteByNovelId(novelId)
+        chapterDao.insertAll(entities)
+        novelDao.update(novelDao.getNovelById(novelId)!!.copy(totalChapters = entities.size))
+    }
+
+    suspend fun importFromUrl(url: String): Long {
+        val fetched = parser.fetchTextFromUrl(url)
+        if (fetched.isBlank()) return -1
+        val title = parser.guessTitleFromUrl(url)
+        val novel = Novel(
+            title = title,
+            sourceUrl = url,
+            sourceName = "URL Import",
+            isLocal = true,
+            localPath = url
+        )
+        val novelId = novelDao.insert(novel)
+        val chapters = parser.splitTextIntoChapters(fetched).mapIndexed { index, pair ->
+            NovelChapter(
+                novelId = novelId,
+                title = pair.first,
+                url = "",
+                index = index,
+                content = pair.second,
+                isCached = true
+            )
+        }
+        chapterDao.insertAll(chapters)
+        novelDao.update(novelDao.getNovelById(novelId)!!.copy(totalChapters = chapters.size))
+        return novelId
     }
 }
