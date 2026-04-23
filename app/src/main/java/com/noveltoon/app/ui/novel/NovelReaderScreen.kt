@@ -652,7 +652,7 @@ fun PageReader(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = pageMargin.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -660,10 +660,12 @@ fun PageReader(
                     style = MaterialTheme.typography.labelSmall,
                     color = textColor.copy(alpha = 0.5f)
                 )
+                Spacer(Modifier.weight(1f))
                 Text(
                     "${battery}%  ·  $time",
                     style = MaterialTheme.typography.labelSmall,
-                    color = textColor.copy(alpha = 0.5f)
+                    color = textColor.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(end = 12.dp)
                 )
                 Text(
                     "${pagerState.currentPage + 1} / ${pages.size.coerceAtLeast(1)}",

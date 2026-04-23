@@ -32,6 +32,7 @@
     <string name="paste_json_or_url">JSON content or URL</string>
     <string name="import_success">Imported %d sources</string>
     <string name="import_failed">Import failed: bad format or network error</string>
+    <string name="import_failed_detail">Import failed: %s</string>
     <string name="import_url_success">Import successful</string>
     <string name="import_url_failed">Import failed, check the URL</string>
     <string name="importing">Importing…</string>

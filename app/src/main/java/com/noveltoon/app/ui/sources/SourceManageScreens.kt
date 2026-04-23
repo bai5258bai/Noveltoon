@@ -80,14 +80,17 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
             onImport = {
                 scope.launch {
                     importing = true
-                    val added = repo.importBookSourcesFromText(importJson)
+                    val result = repo.importBookSourcesFromText(importJson)
                     importing = false
                     showImportDialog = false
                     importJson = ""
-                    snackbarText = if (added > 0)
-                        context.getString(R.string.import_success, added)
+                    snackbarText = if (result.addedCount > 0)
+                        context.getString(R.string.import_success, result.addedCount)
                     else
-                        context.getString(R.string.import_failed)
+                        context.getString(
+                            R.string.import_failed_detail,
+                            result.errorMessage ?: context.getString(R.string.import_failed)
+                        )
                 }
             }
         )
@@ -152,14 +155,17 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
             onImport = {
                 scope.launch {
                     importing = true
-                    val added = repo.importComicSourcesFromText(importJson)
+                    val result = repo.importComicSourcesFromText(importJson)
                     importing = false
                     showImportDialog = false
                     importJson = ""
-                    snackbarText = if (added > 0)
-                        context.getString(R.string.import_success, added)
+                    snackbarText = if (result.addedCount > 0)
+                        context.getString(R.string.import_success, result.addedCount)
                     else
-                        context.getString(R.string.import_failed)
+                        context.getString(
+                            R.string.import_failed_detail,
+                            result.errorMessage ?: context.getString(R.string.import_failed)
+                        )
                 }
             }
         )

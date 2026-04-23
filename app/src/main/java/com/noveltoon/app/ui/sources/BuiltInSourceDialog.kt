@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.noveltoon.app.R
 import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.ComicSource
+import com.noveltoon.app.data.SourceInitializer
 import com.noveltoon.app.data.repository.SourceRepository
 import kotlinx.coroutines.launch
 
@@ -92,8 +93,19 @@ fun BuiltInSourceDialog(
 
     val builtInBook = bookSources.filter { it.isBuiltIn }
     val builtInComic = comicSources.filter { it.isBuiltIn }
+    var initDone by remember { mutableStateOf(false) }
+    var initError by remember { mutableStateOf<String?>(null) }
 
     var tabIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            SourceInitializer.initIfNeeded(context)
+        }.onFailure {
+            initError = it.message
+        }
+        initDone = true
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -113,13 +125,32 @@ fun BuiltInSourceDialog(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                when (tabIndex) {
-                    0 -> BuiltInBookList(builtInBook) { s, enabled ->
-                        scope.launch { repo.updateBookSource(s.copy(enabled = enabled)) }
+                if (!initDone) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
                     }
-                    1 -> BuiltInComicList(builtInComic) { s, enabled ->
-                        scope.launch { repo.updateComicSource(s.copy(enabled = enabled)) }
+                } else {
+                    when (tabIndex) {
+                        0 -> BuiltInBookList(builtInBook) { s, enabled ->
+                            scope.launch { repo.updateBookSource(s.copy(enabled = enabled)) }
+                        }
+                        1 -> BuiltInComicList(builtInComic) { s, enabled ->
+                            scope.launch { repo.updateComicSource(s.copy(enabled = enabled)) }
+                        }
                     }
+                }
+                if (initDone && initError != null && builtInBook.isEmpty() && builtInComic.isEmpty()) {
+                    Text(
+                        text = initError ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
         },

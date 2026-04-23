@@ -169,7 +169,8 @@ fun ComicReaderScreen(
                 Text(
                     "${battery}%  ·  $time",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.White.copy(alpha = 0.65f)
+                    color = Color.White.copy(alpha = 0.65f),
+                    modifier = Modifier.padding(start = 20.dp)
                 )
             }
         }

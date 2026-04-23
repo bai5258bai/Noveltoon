@@ -34,6 +34,7 @@
     <string name="paste_json_or_url">JSON 内容或 URL</string>
     <string name="import_success">导入成功：%d 个</string>
     <string name="import_failed">导入失败：内容格式不正确或网络错误</string>
+    <string name="import_failed_detail">导入失败：%s</string>
     <string name="import_url_success">导入成功</string>
     <string name="import_url_failed">导入失败，请检查网址是否可访问</string>
     <string name="importing">正在导入...</string>
