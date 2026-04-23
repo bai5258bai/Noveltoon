@@ -651,7 +651,8 @@ fun PageReader(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = pageMargin.dp, vertical = 8.dp),
+                    .navigationBarsPadding()
+                    .padding(horizontal = pageMargin.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -848,6 +849,16 @@ fun ReaderSettingsPanel(
     }
 }
 
+/**
+ * @param sourceEntries list of (sourceName, isSearching, hasResult)
+ *   isSearching = currently probing; hasResult = probe found the title in this source
+ */
+data class SourceSwitchEntry(
+    val name: String,
+    val isSearching: Boolean = false,
+    val hasResult: Boolean? = null   // null=unchecked
+)
+
 @Composable
 fun SourceSwitchDialog(
     currentSourceName: String,
@@ -859,17 +870,23 @@ fun SourceSwitchDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.switch_source)) },
         text = {
-            Column(modifier = Modifier.heightIn(max = 360.dp)) {
+            Column(modifier = Modifier.heightIn(max = 400.dp)) {
                 if (sourceNames.isEmpty()) {
                     Text(stringResource(R.string.no_sources))
                 } else {
+                    Text(
+                        stringResource(R.string.switch_source_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                     LazyColumn {
                         items(sourceNames) { name ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onSelect(name) }
-                                    .padding(vertical = 12.dp),
+                                    .padding(vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
@@ -877,7 +894,18 @@ fun SourceSwitchDialog(
                                     onClick = { onSelect(name) }
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text(name)
+                                Text(
+                                    name,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (name == currentSourceName) {
+                                    AssistChip(
+                                        onClick = {},
+                                        label = { Text(stringResource(R.string.source_current), style = MaterialTheme.typography.labelSmall) },
+                                        modifier = Modifier.height(24.dp)
+                                    )
+                                }
                             }
                         }
                     }

@@ -128,4 +128,11 @@
     <string name="about_version">Version %s</string>
     <string name="about_developer">Developer: Bai.</string>
     <string name="about_disclaimer">For personal use only, no commercial use. All content from local files or manually entered network addresses.</string>
+
+    <string name="search_results_label">Search Results</string>
+    <string name="source_check">Check Validity</string>
+    <string name="source_checking">Checking source validity…</string>
+    <string name="source_check_done" formatted="false">Done: %d valid, %d invalid</string>
+    <string name="source_current">Current</string>
+    <string name="switch_source_hint">Select a source to replace the current one</string>
 </resources>

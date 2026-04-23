@@ -45,13 +45,7 @@ class NovelRepository(context: Context) {
 
     suspend fun search(keyword: String): List<SearchResult> {
         val sources = bookSourceDao.getEnabledSources()
-        val results = mutableListOf<SearchResult>()
-        for (source in sources) {
-            try {
-                results.addAll(parser.searchNovel(source, keyword))
-            } catch (_: Exception) {}
-        }
-        return results
+        return parser.searchNovelAllSources(sources, keyword)
     }
 
     suspend fun addFromSearchResult(result: SearchResult): Long {

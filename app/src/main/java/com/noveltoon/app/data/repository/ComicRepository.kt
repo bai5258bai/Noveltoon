@@ -36,13 +36,7 @@ class ComicRepository(context: Context) {
 
     suspend fun search(keyword: String): List<SearchResult> {
         val sources = comicSourceDao.getEnabledSources()
-        val results = mutableListOf<SearchResult>()
-        for (source in sources) {
-            try {
-                results.addAll(parser.searchComic(source, keyword))
-            } catch (_: Exception) {}
-        }
-        return results
+        return parser.searchComicAllSources(sources, keyword)
     }
 
     suspend fun addFromSearchResult(result: SearchResult): Long {
