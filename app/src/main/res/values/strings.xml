@@ -138,11 +138,18 @@
 
     <!-- Search -->
     <string name="search_results_label">热门搜索</string>
+    <string name="searching_hint">正在从多个源搜索，有结果将立即显示...</string>
 
     <!-- Source management v1.0.5 -->
     <string name="source_check">检测有效性</string>
     <string name="source_checking">正在检测源有效性...</string>
     <string name="source_check_done" formatted="false">检测完成：%d 个可用，%d 个失效</string>
     <string name="source_current">当前</string>
-    <string name="switch_source_hint">选择可用的源替换当前源</string>
+    <string name="switch_source_hint">以下源含有此书籍/漫画资源，点击切换</string>
+    <string name="source_finding">正在查找含此书目的源...</string>
+    <string name="source_none_found">未找到含此书目的其他源</string>
+
+    <!-- Reader v1.0.6 -->
+    <string name="content_load_failed">内容加载失败</string>
+    <string name="retry">重试</string>
 </resources>

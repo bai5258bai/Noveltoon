@@ -88,8 +88,19 @@ fun ComicSearchScreen(
             }
 
             if (isSearching) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            if (isSearching && searchResults.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            stringResource(R.string.searching_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
@@ -115,10 +126,14 @@ fun ComicSearchScreen(
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
+                                if (isSearching) {
+                                    Spacer(Modifier.width(8.dp))
+                                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                                }
                             }
                         }
                     }
-                    items(searchResults) { result ->
+                    items(searchResults, key = { it.url + it.sourceName }) { result ->
                         ComicSearchResultCard(
                             result = result,
                             onClick = {

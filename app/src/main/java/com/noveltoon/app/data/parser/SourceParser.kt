@@ -222,27 +222,65 @@ class SourceParser {
 
     // ─── search (concurrent, per-source timeout) ──────────────────────────────
 
-    suspend fun searchNovelAllSources(sources: List<BookSource>, keyword: String): List<SearchResult> =
-        coroutineScope {
-            sources.map { source ->
+    /** Filter: keep results whose title contains the full keyword (case-insensitive) */
+    private fun matchesKeyword(title: String, keyword: String): Boolean {
+        if (keyword.isBlank()) return true
+        return title.contains(keyword.trim(), ignoreCase = true)
+    }
+
+    /**
+     * Concurrent search across all sources.
+     * Emits batches via [onBatch] as each source returns, so UI can show results immediately.
+     * Full results are also returned at the end.
+     */
+    suspend fun searchNovelAllSources(
+        sources: List<BookSource>,
+        keyword: String,
+        onBatch: (suspend (List<SearchResult>) -> Unit)? = null
+    ): List<SearchResult> = coroutineScope {
+        val allResults = mutableListOf<SearchResult>()
+        // chunk into batches of 10 to avoid hammering network all at once
+        sources.chunked(10).forEach { chunk ->
+            chunk.map { source ->
                 async {
                     withTimeoutOrNull(8_000L) {
                         searchNovel(source, keyword)
+                            .filter { matchesKeyword(it.title, keyword) }
                     } ?: emptyList()
                 }
-            }.awaitAll().flatten()
+            }.awaitAll().forEach { batch ->
+                if (batch.isNotEmpty()) {
+                    allResults.addAll(batch)
+                    onBatch?.invoke(allResults.toList())
+                }
+            }
         }
+        allResults
+    }
 
-    suspend fun searchComicAllSources(sources: List<ComicSource>, keyword: String): List<SearchResult> =
-        coroutineScope {
-            sources.map { source ->
+    suspend fun searchComicAllSources(
+        sources: List<ComicSource>,
+        keyword: String,
+        onBatch: (suspend (List<SearchResult>) -> Unit)? = null
+    ): List<SearchResult> = coroutineScope {
+        val allResults = mutableListOf<SearchResult>()
+        sources.chunked(10).forEach { chunk ->
+            chunk.map { source ->
                 async {
                     withTimeoutOrNull(8_000L) {
                         searchComic(source, keyword)
+                            .filter { matchesKeyword(it.title, keyword) }
                     } ?: emptyList()
                 }
-            }.awaitAll().flatten()
+            }.awaitAll().forEach { batch ->
+                if (batch.isNotEmpty()) {
+                    allResults.addAll(batch)
+                    onBatch?.invoke(allResults.toList())
+                }
+            }
         }
+        allResults
+    }
 
     suspend fun searchNovel(source: BookSource, keyword: String): List<SearchResult> {
         return try {

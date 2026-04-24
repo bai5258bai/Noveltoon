@@ -130,9 +130,14 @@
     <string name="about_disclaimer">For personal use only, no commercial use. All content from local files or manually entered network addresses.</string>
 
     <string name="search_results_label">Search Results</string>
+    <string name="searching_hint">Searching across sources, results appear as they arrive…</string>
     <string name="source_check">Check Validity</string>
     <string name="source_checking">Checking source validity…</string>
     <string name="source_check_done" formatted="false">Done: %d valid, %d invalid</string>
     <string name="source_current">Current</string>
-    <string name="switch_source_hint">Select a source to replace the current one</string>
+    <string name="switch_source_hint">These sources have this title, tap to switch</string>
+    <string name="source_finding">Finding sources with this title…</string>
+    <string name="source_none_found">No other sources found for this title</string>
+    <string name="content_load_failed">Content failed to load</string>
+    <string name="retry">Retry</string>
 </resources>
