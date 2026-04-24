@@ -85,11 +85,22 @@ fun MainScreen() {
         )
     )
 
-    val showBottomBar = currentDestination?.route in listOf(
-        Screen.NovelBookshelf.route,
-        Screen.ComicBookshelf.route,
-        Screen.Settings.route
+    // Routes where the bottom bar must be hidden
+    val hideBottomBarRoutes = setOf(
+        Screen.NovelReader.route,
+        Screen.NovelSearch.route,
+        Screen.NovelSourceManage.route,
+        Screen.ComicReader.route,
+        Screen.ComicSearch.route,
+        Screen.ComicSourceManage.route
     )
+    val showBottomBar = currentDestination?.route != null &&
+        currentDestination.hierarchy.none { dest ->
+            hideBottomBarRoutes.any { hideRoute ->
+                dest.route == hideRoute || (dest.route?.startsWith("novel_reader/") == true) ||
+                    (dest.route?.startsWith("comic_reader/") == true)
+            }
+        }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),

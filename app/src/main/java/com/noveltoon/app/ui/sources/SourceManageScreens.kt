@@ -7,10 +7,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -34,12 +38,30 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
     var importJson by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
     var snackbarText by remember { mutableStateOf("") }
+    // validity: id -> true/false/null(unchecked)
+    var validity by remember { mutableStateOf(mapOf<Long, Boolean>()) }
+    var checking by remember { mutableStateOf(false) }
 
     SourceManageScaffold(
         title = stringResource(R.string.manage_book_sources),
         onNavigateBack = onNavigateBack,
         onAdd = { showImportDialog = true },
-        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn) },
+        onCheckValidity = {
+            scope.launch {
+                checking = true
+                snackbarText = context.getString(R.string.source_checking)
+                val result = mutableMapOf<Long, Boolean>()
+                sources.forEach { s ->
+                    result[s.id] = repo.checkBookSourceValid(s)
+                }
+                validity = result
+                checking = false
+                val ok = result.values.count { it }
+                val fail = result.values.count { !it }
+                snackbarText = context.getString(R.string.source_check_done, ok, fail)
+            }
+        },
+        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn, validity[it.id]) },
         selectedIds = selectedIds,
         snackbarText = snackbarText,
         onSnackbarDismiss = { snackbarText = "" },
@@ -109,12 +131,29 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
     var importJson by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
     var snackbarText by remember { mutableStateOf("") }
+    var validity by remember { mutableStateOf(mapOf<Long, Boolean>()) }
+    var checking by remember { mutableStateOf(false) }
 
     SourceManageScaffold(
         title = stringResource(R.string.manage_comic_sources),
         onNavigateBack = onNavigateBack,
         onAdd = { showImportDialog = true },
-        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn) },
+        onCheckValidity = {
+            scope.launch {
+                checking = true
+                snackbarText = context.getString(R.string.source_checking)
+                val result = mutableMapOf<Long, Boolean>()
+                sources.forEach { s ->
+                    result[s.id] = repo.checkComicSourceValid(s)
+                }
+                validity = result
+                checking = false
+                val ok = result.values.count { it }
+                val fail = result.values.count { !it }
+                snackbarText = context.getString(R.string.source_check_done, ok, fail)
+            }
+        },
+        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn, validity[it.id]) },
         selectedIds = selectedIds,
         snackbarText = snackbarText,
         onSnackbarDismiss = { snackbarText = "" },
@@ -177,7 +216,8 @@ data class SourceListEntry(
     val name: String,
     val url: String,
     val enabled: Boolean,
-    val isBuiltIn: Boolean = false
+    val isBuiltIn: Boolean = false,
+    val isValid: Boolean? = null   // null=unchecked, true=ok, false=invalid
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,6 +226,7 @@ private fun SourceManageScaffold(
     title: String,
     onNavigateBack: () -> Unit,
     onAdd: () -> Unit,
+    onCheckValidity: () -> Unit,
     sources: List<SourceListEntry>,
     selectedIds: Set<Long>,
     snackbarText: String,
@@ -208,6 +249,9 @@ private fun SourceManageScaffold(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onCheckValidity) {
+                        Icon(Icons.Default.NetworkCheck, stringResource(R.string.source_check))
+                    }
                     IconButton(onClick = onAdd) {
                         Icon(Icons.Default.Add, stringResource(R.string.import_source))
                     }
@@ -286,6 +330,15 @@ private fun SourceCheckListItem(
         Spacer(Modifier.width(4.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // validity icon
+                when (entry.isValid) {
+                    true -> Icon(Icons.Default.CheckCircle, null,
+                        tint = Color(0xFF4CAF50), modifier = Modifier.size(14.dp))
+                    false -> Icon(Icons.Default.Error, null,
+                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                    null -> {}
+                }
+                if (entry.isValid != null) Spacer(Modifier.width(4.dp))
                 Text(
                     entry.name,
                     style = MaterialTheme.typography.bodyLarge,
