@@ -7,12 +7,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import kotlin.coroutines.coroutineContext
 import java.net.URLEncoder
 import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
@@ -238,11 +240,13 @@ class SourceParser {
         keyword: String,
         onBatch: (suspend (List<SearchResult>) -> Unit)? = null
     ): List<SearchResult> = coroutineScope {
-        val allResults = mutableListOf<SearchResult>()
-        // chunk into batches of 10 to avoid hammering network all at once
-        sources.chunked(10).forEach { chunk ->
+        val allResults = linkedMapOf<String, SearchResult>()
+        // Keep batches small: many imported sources can otherwise exhaust sockets and crash old devices.
+        sources.chunked(6).forEach { chunk ->
+            coroutineContext.ensureActive()
             chunk.map { source ->
                 async {
+                    coroutineContext.ensureActive()
                     withTimeoutOrNull(8_000L) {
                         searchNovel(source, keyword)
                             .filter { matchesKeyword(it.title, keyword) }
@@ -250,12 +254,14 @@ class SourceParser {
                 }
             }.awaitAll().forEach { batch ->
                 if (batch.isNotEmpty()) {
-                    allResults.addAll(batch)
-                    onBatch?.invoke(allResults.toList())
+                    batch.forEach { result ->
+                        allResults[result.sourceName + "|" + result.url + "|" + result.title] = result
+                    }
+                    onBatch?.invoke(allResults.values.toList())
                 }
             }
         }
-        allResults
+        allResults.values.toList()
     }
 
     suspend fun searchComicAllSources(
@@ -263,10 +269,12 @@ class SourceParser {
         keyword: String,
         onBatch: (suspend (List<SearchResult>) -> Unit)? = null
     ): List<SearchResult> = coroutineScope {
-        val allResults = mutableListOf<SearchResult>()
-        sources.chunked(10).forEach { chunk ->
+        val allResults = linkedMapOf<String, SearchResult>()
+        sources.chunked(6).forEach { chunk ->
+            coroutineContext.ensureActive()
             chunk.map { source ->
                 async {
+                    coroutineContext.ensureActive()
                     withTimeoutOrNull(8_000L) {
                         searchComic(source, keyword)
                             .filter { matchesKeyword(it.title, keyword) }
@@ -274,12 +282,14 @@ class SourceParser {
                 }
             }.awaitAll().forEach { batch ->
                 if (batch.isNotEmpty()) {
-                    allResults.addAll(batch)
-                    onBatch?.invoke(allResults.toList())
+                    batch.forEach { result ->
+                        allResults[result.sourceName + "|" + result.url + "|" + result.title] = result
+                    }
+                    onBatch?.invoke(allResults.values.toList())
                 }
             }
         }
-        allResults
+        allResults.values.toList()
     }
 
     suspend fun searchNovel(source: BookSource, keyword: String): List<SearchResult> {
@@ -331,6 +341,11 @@ class SourceParser {
             val enc = source.searchEncoding.ifBlank { "UTF-8" }
             val doc = fetchDocument(url, enc)
             var raw = applySingleRule(doc, source.contentRule)
+            if (raw.isBlank()) {
+                val body = doc.body()
+                body.select("script, style, nav, footer, header, form, iframe, ins, .ads, .ad").remove()
+                raw = body.text()
+            }
 
             if (source.contentNextPageRule.isNotBlank()) {
                 var nextUrl = applySingleRule(doc, source.contentNextPageRule, source.baseUrl)
@@ -393,7 +408,16 @@ class SourceParser {
             val url = if (chapterUrl.startsWith("http")) chapterUrl
             else source.baseUrl.trimEnd('/') + "/${chapterUrl.trimStart('/')}"
             val doc = fetchDocument(url)
-            applyRule(doc, source.imageListRule, source.baseUrl).filter { it.isNotBlank() }
+            val ruleImages = applyRule(doc, source.imageListRule, source.baseUrl).filter { it.isNotBlank() }
+            if (ruleImages.isNotEmpty()) return ruleImages
+
+            doc.select("img").mapNotNull { el ->
+                el.absUrl("src")
+                    .ifEmpty { el.absUrl("data-src") }
+                    .ifEmpty { el.absUrl("data-original") }
+                    .ifEmpty { el.attr("src") }
+                    .takeIf { it.isNotBlank() }
+            }.distinct()
         } catch (_: Exception) { emptyList() }
     }
 

@@ -133,7 +133,10 @@ fun ComicSearchScreen(
                             }
                         }
                     }
-                    items(searchResults, key = { it.url + it.sourceName }) { result ->
+                    items(
+                        items = searchResults,
+                        key = { "${it.sourceName}|${it.url}|${it.title}" }
+                    ) { result ->
                         ComicSearchResultCard(
                             result = result,
                             onClick = {

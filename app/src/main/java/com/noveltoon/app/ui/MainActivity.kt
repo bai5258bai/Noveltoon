@@ -4,11 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoStories
@@ -94,23 +89,22 @@ fun MainScreen() {
         Screen.ComicSearch.route,
         Screen.ComicSourceManage.route
     )
-    val showBottomBar = currentDestination?.route != null &&
-        currentDestination.hierarchy.none { dest ->
-            hideBottomBarRoutes.any { hideRoute ->
-                dest.route == hideRoute || (dest.route?.startsWith("novel_reader/") == true) ||
-                    (dest.route?.startsWith("comic_reader/") == true)
-            }
-        }
+    val currentRoute = currentDestination?.route
+    val showBottomBar = currentRoute in setOf(
+        Screen.NovelBookshelf.route,
+        Screen.ComicBookshelf.route,
+        Screen.Settings.route
+    ) && currentDestination?.hierarchy?.none { dest ->
+        hideBottomBarRoutes.contains(dest.route)
+    } == true
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
-            AnimatedVisibility(
-                visible = showBottomBar,
-                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-            ) {
+            // Do not animate here: animated removal still reserves/changes layout for a frame
+            // and causes the bottom-tab placeholder flash reported on source-management pages.
+            if (showBottomBar) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 6.dp

@@ -70,7 +70,10 @@ class NovelRepository(context: Context) {
         if (source != null) {
             try {
                 val chapters = parser.getNovelChapters(source, result.url)
-                val entities = chapters.mapIndexed { index, info ->
+                val safeChapters = chapters.ifEmpty {
+                    listOf(com.noveltoon.app.data.parser.ChapterInfo(result.latestChapter.ifBlank { "第 1 章" }, result.url))
+                }
+                val entities = safeChapters.mapIndexed { index, info ->
                     NovelChapter(
                         novelId = novelId,
                         title = info.title,
@@ -81,15 +84,33 @@ class NovelRepository(context: Context) {
                 chapterDao.insertAll(entities)
                 novelDao.update(novelDao.getNovelById(novelId)!!.copy(totalChapters = entities.size))
             } catch (_: Exception) {}
+        } else {
+            chapterDao.insertAll(
+                listOf(
+                    NovelChapter(
+                        novelId = novelId,
+                        title = result.latestChapter.ifBlank { "第 1 章" },
+                        url = result.url,
+                        index = 0
+                    )
+                )
+            )
+            novelDao.update(novel.copy(id = novelId, totalChapters = 1))
         }
         return novelId
     }
 
     suspend fun loadChapterContent(novelId: Long, chapterIndex: Int): String {
-        val chapter = chapterDao.getChapterByIndex(novelId, chapterIndex) ?: return ""
+        val novel = novelDao.getNovelById(novelId) ?: return ""
+        val chapter = chapterDao.getChapterByIndex(novelId, chapterIndex)
+            ?: NovelChapter(
+                novelId = novelId,
+                title = novel.lastChapterTitle.ifBlank { "第 1 章" },
+                url = novel.sourceUrl,
+                index = 0
+            ).also { chapterDao.insertAll(listOf(it)) }
         if (chapter.isCached && chapter.content.isNotBlank()) return chapter.content
 
-        val novel = novelDao.getNovelById(novelId) ?: return ""
         val source = bookSourceDao.getEnabledSources().find { it.name == novel.sourceName } ?: return ""
 
         val content = parser.getNovelContent(source, chapter.url)

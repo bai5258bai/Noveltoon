@@ -60,8 +60,11 @@ class ComicRepository(context: Context) {
         if (source != null) {
             try {
                 val chapters = parser.getComicChapters(source, result.url)
-                val entities = chapters.mapIndexed { index, info ->
-                    ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+                val safeChapters = chapters.ifEmpty {
+                    listOf(com.noveltoon.app.data.parser.ChapterInfo(result.title, result.url))
+                }
+                val entities = safeChapters.mapIndexed { index, info ->
+                    ComicChapter(comicId = comicId, title = info.title.ifBlank { result.title }, url = info.url, index = index)
                 }
                 chapterDao.insertAll(entities)
                 comicDao.update(comicDao.getComicById(comicId)!!.copy(totalChapters = entities.size))
@@ -89,8 +92,11 @@ class ComicRepository(context: Context) {
         val comic = comicDao.getComicById(comicId) ?: return
         val source = comicSourceDao.getEnabledSources().find { it.name == comic.sourceName } ?: return
         val chapters = parser.getComicChapters(source, comic.sourceUrl)
-        val entities = chapters.mapIndexed { index, info ->
-            ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+        val safeChapters = chapters.ifEmpty {
+            listOf(com.noveltoon.app.data.parser.ChapterInfo(comic.title, comic.sourceUrl))
+        }
+        val entities = safeChapters.mapIndexed { index, info ->
+            ComicChapter(comicId = comicId, title = info.title.ifBlank { comic.title }, url = info.url, index = index)
         }
         chapterDao.deleteByComicId(comicId)
         chapterDao.insertAll(entities)
@@ -124,8 +130,11 @@ class ComicRepository(context: Context) {
             )
         )
         val chapters = parser.getComicChapters(newSource, match.url)
-        val entities = chapters.mapIndexed { index, info ->
-            ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+        val safeChapters = chapters.ifEmpty {
+            listOf(com.noveltoon.app.data.parser.ChapterInfo(match.title.ifBlank { comic.title }, match.url))
+        }
+        val entities = safeChapters.mapIndexed { index, info ->
+            ComicChapter(comicId = comicId, title = info.title.ifBlank { comic.title }, url = info.url, index = index)
         }
         chapterDao.deleteByComicId(comicId)
         chapterDao.insertAll(entities)

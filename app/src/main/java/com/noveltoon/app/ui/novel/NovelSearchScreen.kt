@@ -135,7 +135,10 @@ fun NovelSearchScreen(
                             }
                         }
                     }
-                    items(searchResults, key = { it.url + it.sourceName }) { result ->
+                    items(
+                        items = searchResults,
+                        key = { "${it.sourceName}|${it.url}|${it.title}".hashCode() }
+                    ) { result ->
                         NovelSearchResultCard(
                             result = result,
                             onClick = {

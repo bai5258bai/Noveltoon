@@ -9,6 +9,7 @@ import com.noveltoon.app.data.entity.ComicChapter
 import com.noveltoon.app.data.entity.ComicSource
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.repository.ComicRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -27,6 +28,7 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+    private var searchJob: Job? = null
 
     private val _currentComic = MutableStateFlow<Comic?>(null)
     val currentComic: StateFlow<Comic?> = _currentComic.asStateFlow()
@@ -44,12 +46,13 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
     val imageLoadError: StateFlow<Boolean> = _imageLoadError.asStateFlow()
 
     fun search(keyword: String) {
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _isSearching.value = true
             _searchResults.value = emptyList()
             try {
                 repository.search(keyword) { partial ->
-                    _searchResults.value = partial
+                    _searchResults.value = partial.distinctBy { it.sourceName + "|" + it.url + "|" + it.title }
                 }
             } catch (_: Exception) {}
             _isSearching.value = false
