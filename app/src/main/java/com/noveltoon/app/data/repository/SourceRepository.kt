@@ -9,6 +9,7 @@ import com.google.gson.JsonParser
 import com.noveltoon.app.data.AppDatabase
 import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.ComicSource
+import com.noveltoon.app.data.parser.SourceParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -21,6 +22,7 @@ class SourceRepository(context: Context) {
     private val bookSourceDao = db.bookSourceDao()
     private val comicSourceDao = db.comicSourceDao()
     private val gson = Gson()
+    private val parser = SourceParser()
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -41,6 +43,12 @@ class SourceRepository(context: Context) {
 
     suspend fun deleteBookSource(source: BookSource) = bookSourceDao.delete(source)
     suspend fun deleteComicSource(source: ComicSource) = comicSourceDao.delete(source)
+
+    /** Returns true if source search URL responds with non-empty HTML */
+    suspend fun checkBookSourceValid(source: BookSource): Boolean = parser.checkBookSourceValid(source)
+
+    /** Returns true if comic source search URL responds with non-empty HTML */
+    suspend fun checkComicSourceValid(source: ComicSource): Boolean = parser.checkComicSourceValid(source)
 
     private suspend fun fetchText(url: String): Pair<String, String?> = withContext(Dispatchers.IO) {
         val fallbackUrls = buildFallbackUrls(url)
