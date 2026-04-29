@@ -13,6 +13,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 import org.jsoup.nodes.Document
 import kotlin.coroutines.coroutineContext
 import java.net.URLEncoder
@@ -143,25 +144,112 @@ class SourceParser {
     private fun applyRule(doc: Document, rule: String, baseUrl: String = ""): List<String> {
         if (rule.isBlank()) return emptyList()
         return try {
-            val parts = rule.split("@")
+            val parts = rule.split("@", limit = 2)
             val cssSelector = parts[0]
             val attr = if (parts.size > 1) parts[1] else "text"
-            doc.select(cssSelector).map { element ->
-                val value = when (attr) {
-                    "text" -> element.text()
-                    "html" -> element.html()
-                    "src"  -> element.absUrl("src").ifEmpty { element.attr("src") }
-                    "href" -> element.absUrl("href").ifEmpty { element.attr("href") }
-                    else   -> element.attr(attr)
-                }
-                if (value.startsWith("/") && baseUrl.isNotEmpty()) "${baseUrl.trimEnd('/')}$value"
-                else value
+            val elements = if (cssSelector.isBlank()) {
+                // Reader-style rules often use "@text" / "@href" to mean current item.
+                // We parse item HTML as a mini document, so the first body child is the current item.
+                doc.body()?.children()?.takeIf { it.isNotEmpty() } ?: doc.children()
+            } else {
+                doc.select(cssSelector)
             }
+            elements.map { element -> extractValue(element, attr, baseUrl) }
         } catch (_: Exception) { emptyList() }
     }
 
     private fun applySingleRule(doc: Document, rule: String, baseUrl: String = "") =
         applyRule(doc, rule, baseUrl).firstOrNull() ?: ""
+
+    private fun extractValue(element: Element, attr: String, baseUrl: String = ""): String {
+        val value = when (attr) {
+            "text" -> element.text()
+            "html" -> element.html()
+            "src" -> element.absUrl("src").ifEmpty { element.attr("src") }
+            "href" -> element.absUrl("href").ifEmpty { element.attr("href") }
+            "data-src", "data-original", "data-url", "data-lazy-src" ->
+                element.absUrl(attr).ifEmpty { element.attr(attr) }
+            else -> element.absUrl(attr).ifEmpty { element.attr(attr) }
+        }.trim()
+        return resolveUrl(value, baseUrl)
+    }
+
+    private fun resolveUrl(value: String, baseUrl: String = ""): String {
+        if (value.isBlank()) return ""
+        val cleaned = value.trim().replace("\\/", "/")
+        return when {
+            cleaned.startsWith("//") -> "https:$cleaned"
+            cleaned.startsWith("/") && baseUrl.isNotEmpty() -> "${baseUrl.trimEnd('/')}$cleaned"
+            else -> cleaned
+        }
+    }
+
+    private fun isLikelyChapter(title: String, href: String): Boolean {
+        val text = title.trim()
+        val url = href.lowercase()
+        if (text.length !in 2..80) return false
+        if (text.contains("上一") || text.contains("下一") || text.contains("返回") || text.contains("首页")) return false
+        return Regex("第\\s*[零一二三四五六七八九十百千万\\d]+\\s*[章节话回卷]|chapter\\s*\\d+", RegexOption.IGNORE_CASE)
+            .containsMatchIn(text) ||
+            url.contains("chapter") || url.contains("read") || url.contains("book/")
+    }
+
+    private fun extractGenericChapters(doc: Document, baseUrl: String): List<ChapterInfo> {
+        return doc.select("a[href]").mapNotNull { a ->
+            val title = a.text().trim()
+            val href = a.absUrl("href").ifEmpty { a.attr("href") }
+            val url = resolveUrl(href, baseUrl)
+            if (url.isNotBlank() && isLikelyChapter(title, url)) ChapterInfo(title, url) else null
+        }.distinctBy { it.url }.take(3000)
+    }
+
+    private fun extractGenericContent(doc: Document): String {
+        val selectors = listOf(
+            "#content",
+            "div#content",
+            ".content",
+            ".chapter-content",
+            ".read-content",
+            ".book-content",
+            ".article-content",
+            ".entry-content",
+            "article",
+            "section"
+        )
+        for (selector in selectors) {
+            val element = doc.selectFirst(selector) ?: continue
+            val text = cleanContent(element.html())
+            if (text.length >= 80) return text
+        }
+        return ""
+    }
+
+    private fun extractImageUrlsFromDoc(doc: Document, baseUrl: String): List<String> {
+        val attrNames = listOf("src", "data-src", "data-original", "data-url", "data-lazy-src")
+        val fromTags = doc.select("img, amp-img, source").flatMap { element ->
+            attrNames.mapNotNull { attr ->
+                extractValue(element, attr, baseUrl).takeIf { it.isImageUrlLike() }
+            } + element.attr("srcset")
+                .split(",")
+                .mapNotNull { it.trim().substringBefore(" ").takeIf { url -> url.isImageUrlLike() } }
+        }
+        val html = doc.html().replace("\\/", "/")
+        val fromScripts = Regex("""https?:[^"'\\\s]+?\.(?:jpg|jpeg|png|webp|gif)(?:\?[^"'\\\s]*)?""", RegexOption.IGNORE_CASE)
+            .findAll(html)
+            .map { it.value }
+            .toList()
+        return (fromTags + fromScripts)
+            .map { resolveUrl(it, baseUrl) }
+            .filter { it.isImageUrlLike() }
+            .distinct()
+    }
+
+    private fun String.isImageUrlLike(): Boolean {
+        val lower = lowercase()
+        return (lower.startsWith("http://") || lower.startsWith("https://") || lower.startsWith("//") || lower.startsWith("/")) &&
+            (lower.contains(".jpg") || lower.contains(".jpeg") || lower.contains(".png") ||
+                lower.contains(".webp") || lower.contains(".gif"))
+    }
 
     // ─── content cleaner ──────────────────────────────────────────────────────
 
@@ -323,14 +411,21 @@ class SourceParser {
             val url = if (bookUrl.startsWith("http")) bookUrl
             else source.baseUrl.trimEnd('/') + "/${bookUrl.trimStart('/')}"
             val doc = fetchDocument(url, source.searchEncoding.ifBlank { "UTF-8" })
-            if (source.chapterListRule.isBlank()) return emptyList()
-            doc.select(source.chapterListRule).map { element ->
-                val itemDoc = Jsoup.parse(element.outerHtml(), url)
-                ChapterInfo(
-                    title = applySingleRule(itemDoc, source.chapterNameRule),
-                    url = applySingleRule(itemDoc, source.chapterUrlRule, source.baseUrl)
-                )
-            }.filter { it.title.isNotBlank() }
+            val ruleChapters = if (source.chapterListRule.isNotBlank()) {
+                doc.select(source.chapterListRule).map { element ->
+                    val itemDoc = Jsoup.parse(element.outerHtml(), url)
+                    ChapterInfo(
+                        title = applySingleRule(itemDoc, source.chapterNameRule).ifBlank { element.text() },
+                        url = applySingleRule(itemDoc, source.chapterUrlRule, source.baseUrl)
+                            .ifBlank { element.absUrl("href").ifBlank { element.attr("href") } }
+                            .let { resolveUrl(it, source.baseUrl) }
+                    )
+                }.filter { it.title.isNotBlank() && it.url.isNotBlank() }
+            } else {
+                emptyList()
+            }
+            val chapters = if (ruleChapters.size >= 2) ruleChapters else extractGenericChapters(doc, source.baseUrl)
+            chapters.distinctBy { it.url }.take(3000)
         } catch (_: Exception) { emptyList() }
     }
 
@@ -341,11 +436,7 @@ class SourceParser {
             val enc = source.searchEncoding.ifBlank { "UTF-8" }
             val doc = fetchDocument(url, enc)
             var raw = applySingleRule(doc, source.contentRule)
-            if (raw.isBlank()) {
-                val body = doc.body()
-                body.select("script, style, nav, footer, header, form, iframe, ins, .ads, .ad").remove()
-                raw = body.text()
-            }
+            if (raw.isBlank()) raw = extractGenericContent(doc)
 
             if (source.contentNextPageRule.isNotBlank()) {
                 var nextUrl = applySingleRule(doc, source.contentNextPageRule, source.baseUrl)
@@ -392,14 +483,21 @@ class SourceParser {
             val url = if (comicUrl.startsWith("http")) comicUrl
             else source.baseUrl.trimEnd('/') + "/${comicUrl.trimStart('/')}"
             val doc = fetchDocument(url)
-            if (source.chapterListRule.isBlank()) return emptyList()
-            doc.select(source.chapterListRule).map { element ->
-                val itemDoc = Jsoup.parse(element.outerHtml(), url)
-                ChapterInfo(
-                    title = applySingleRule(itemDoc, source.chapterNameRule),
-                    url = applySingleRule(itemDoc, source.chapterUrlRule, source.baseUrl)
-                )
-            }.filter { it.title.isNotBlank() }
+            val ruleChapters = if (source.chapterListRule.isNotBlank()) {
+                doc.select(source.chapterListRule).map { element ->
+                    val itemDoc = Jsoup.parse(element.outerHtml(), url)
+                    ChapterInfo(
+                        title = applySingleRule(itemDoc, source.chapterNameRule).ifBlank { element.text() },
+                        url = applySingleRule(itemDoc, source.chapterUrlRule, source.baseUrl)
+                            .ifBlank { element.absUrl("href").ifBlank { element.attr("href") } }
+                            .let { resolveUrl(it, source.baseUrl) }
+                    )
+                }.filter { it.title.isNotBlank() && it.url.isNotBlank() }
+            } else {
+                emptyList()
+            }
+            val chapters = if (ruleChapters.size >= 1) ruleChapters else extractGenericChapters(doc, source.baseUrl)
+            chapters.distinctBy { it.url }.take(3000)
         } catch (_: Exception) { emptyList() }
     }
 
@@ -411,13 +509,7 @@ class SourceParser {
             val ruleImages = applyRule(doc, source.imageListRule, source.baseUrl).filter { it.isNotBlank() }
             if (ruleImages.isNotEmpty()) return ruleImages
 
-            doc.select("img").mapNotNull { el ->
-                el.absUrl("src")
-                    .ifEmpty { el.absUrl("data-src") }
-                    .ifEmpty { el.absUrl("data-original") }
-                    .ifEmpty { el.attr("src") }
-                    .takeIf { it.isNotBlank() }
-            }.distinct()
+            extractImageUrlsFromDoc(doc, source.baseUrl)
         } catch (_: Exception) { emptyList() }
     }
 
