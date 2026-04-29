@@ -9,6 +9,7 @@ import com.noveltoon.app.data.entity.ComicChapter
 import com.noveltoon.app.data.entity.ComicSource
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.repository.ComicRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -27,6 +28,7 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+    private var searchJob: Job? = null
 
     private val _currentComic = MutableStateFlow<Comic?>(null)
     val currentComic: StateFlow<Comic?> = _currentComic.asStateFlow()
@@ -40,12 +42,18 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoadingImages = MutableStateFlow(false)
     val isLoadingImages: StateFlow<Boolean> = _isLoadingImages.asStateFlow()
 
+    private val _imageLoadError = MutableStateFlow(false)
+    val imageLoadError: StateFlow<Boolean> = _imageLoadError.asStateFlow()
+
     fun search(keyword: String) {
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _isSearching.value = true
             _searchResults.value = emptyList()
             try {
-                _searchResults.value = repository.search(keyword)
+                repository.search(keyword) { partial ->
+                    _searchResults.value = partial.distinctBy { it.sourceName + "|" + it.url + "|" + it.title }
+                }
             } catch (_: Exception) {}
             _isSearching.value = false
         }
@@ -74,15 +82,23 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
     fun loadChapterImages(comicId: Long, chapterIndex: Int) {
         viewModelScope.launch {
             _isLoadingImages.value = true
+            _imageLoadError.value = false
             _images.value = emptyList()
             try {
-                _images.value = repository.loadChapterImages(comicId, chapterIndex)
-                val chapter = _chapters.value.getOrNull(chapterIndex)
-                if (chapter != null) {
-                    repository.updateReadProgress(comicId, chapterIndex, 0, chapter.title)
-                    _currentComic.value = repository.getComicById(comicId)
+                val imgs = repository.loadChapterImages(comicId, chapterIndex)
+                _images.value = imgs
+                if (imgs.isEmpty()) {
+                    _imageLoadError.value = true
+                } else {
+                    val chapter = _chapters.value.getOrNull(chapterIndex)
+                    if (chapter != null) {
+                        repository.updateReadProgress(comicId, chapterIndex, 0, chapter.title)
+                        _currentComic.value = repository.getComicById(comicId)
+                    }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                _imageLoadError.value = true
+            }
             _isLoadingImages.value = false
         }
     }
@@ -134,12 +150,33 @@ class ComicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.addReadingTime(id, ms) }
     }
 
+    private val _availableSources = MutableStateFlow<List<String>>(emptyList())
+    val availableSources: StateFlow<List<String>> = _availableSources.asStateFlow()
+
+    private val _isFindingSources = MutableStateFlow(false)
+    val isFindingSources: StateFlow<Boolean> = _isFindingSources.asStateFlow()
+
+    fun findAvailableSources(comicId: Long) {
+        viewModelScope.launch {
+            val comic = repository.getComicById(comicId) ?: return@launch
+            _isFindingSources.value = true
+            _availableSources.value = emptyList()
+            try {
+                val found = repository.findSourcesForTitle(comic.title)
+                _availableSources.value = found.map { it.first }
+            } catch (_: Exception) {}
+            _isFindingSources.value = false
+        }
+    }
+
     fun switchSource(comicId: Long, newSourceName: String) {
         viewModelScope.launch {
             try {
-                repository.switchSource(comicId, newSourceName)
-                _currentComic.value = repository.getComicById(comicId)
-                _chapters.value = repository.getChaptersList(comicId)
+                val ok = repository.switchSource(comicId, newSourceName)
+                if (ok) {
+                    _currentComic.value = repository.getComicById(comicId)
+                    _chapters.value = repository.getChaptersList(comicId)
+                }
             } catch (_: Exception) {}
         }
     }

@@ -9,6 +9,7 @@ import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.data.entity.NovelChapter
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.repository.NovelRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -27,6 +28,7 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+    private var searchJob: Job? = null
 
     private val _currentNovel = MutableStateFlow<Novel?>(null)
     val currentNovel: StateFlow<Novel?> = _currentNovel.asStateFlow()
@@ -40,12 +42,18 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoadingContent = MutableStateFlow(false)
     val isLoadingContent: StateFlow<Boolean> = _isLoadingContent.asStateFlow()
 
+    private val _contentLoadError = MutableStateFlow(false)
+    val contentLoadError: StateFlow<Boolean> = _contentLoadError.asStateFlow()
+
     fun search(keyword: String) {
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _isSearching.value = true
             _searchResults.value = emptyList()
             try {
-                _searchResults.value = repository.search(keyword)
+                repository.search(keyword) { partial ->
+                    _searchResults.value = partial.distinctBy { it.sourceName + "|" + it.url + "|" + it.title }
+                }
             } catch (_: Exception) {}
             _isSearching.value = false
         }
@@ -78,15 +86,22 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
     fun loadChapter(novelId: Long, chapterIndex: Int) {
         viewModelScope.launch {
             _isLoadingContent.value = true
+            _contentLoadError.value = false
             try {
                 val content = repository.loadChapterContent(novelId, chapterIndex)
                 _chapterContent.value = content
-                val chapter = _chapters.value.getOrNull(chapterIndex)
-                if (chapter != null) {
-                    repository.updateReadProgress(novelId, chapterIndex, 0, chapter.title)
-                    _currentNovel.value = repository.getNovelById(novelId)
+                if (content.isBlank()) {
+                    _contentLoadError.value = true
+                } else {
+                    val chapter = _chapters.value.getOrNull(chapterIndex)
+                    if (chapter != null) {
+                        repository.updateReadProgress(novelId, chapterIndex, 0, chapter.title)
+                        _currentNovel.value = repository.getNovelById(novelId)
+                    }
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+                _contentLoadError.value = true
+            }
             _isLoadingContent.value = false
         }
     }
@@ -136,12 +151,33 @@ class NovelViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.addReadingTime(id, ms) }
     }
 
+    private val _availableSources = MutableStateFlow<List<String>>(emptyList())
+    val availableSources: StateFlow<List<String>> = _availableSources.asStateFlow()
+
+    private val _isFindingSources = MutableStateFlow(false)
+    val isFindingSources: StateFlow<Boolean> = _isFindingSources.asStateFlow()
+
+    fun findAvailableSources(novelId: Long) {
+        viewModelScope.launch {
+            val novel = repository.getNovelById(novelId) ?: return@launch
+            _isFindingSources.value = true
+            _availableSources.value = emptyList()
+            try {
+                val found = repository.findSourcesForTitle(novel.title)
+                _availableSources.value = found.map { it.first }
+            } catch (_: Exception) {}
+            _isFindingSources.value = false
+        }
+    }
+
     fun switchSource(novelId: Long, newSourceName: String) {
         viewModelScope.launch {
             try {
-                repository.switchSource(novelId, newSourceName)
-                _currentNovel.value = repository.getNovelById(novelId)
-                _chapters.value = repository.getChaptersList(novelId)
+                val ok = repository.switchSource(novelId, newSourceName)
+                if (ok) {
+                    _currentNovel.value = repository.getNovelById(novelId)
+                    _chapters.value = repository.getChaptersList(novelId)
+                }
             } catch (_: Exception) {}
         }
     }

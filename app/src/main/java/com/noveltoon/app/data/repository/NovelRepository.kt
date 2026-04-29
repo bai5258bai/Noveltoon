@@ -4,9 +4,11 @@ import android.content.Context
 import com.noveltoon.app.data.AppDatabase
 import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.data.entity.NovelChapter
+import com.noveltoon.app.data.parser.ChapterInfo
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.parser.SourceParser
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withTimeoutOrNull
 
 class NovelRepository(context: Context) {
     private val db = AppDatabase.getInstance(context)
@@ -43,15 +45,12 @@ class NovelRepository(context: Context) {
 
     suspend fun updateChapter(chapter: NovelChapter) = chapterDao.update(chapter)
 
-    suspend fun search(keyword: String): List<SearchResult> {
+    suspend fun search(
+        keyword: String,
+        onBatch: (suspend (List<SearchResult>) -> Unit)? = null
+    ): List<SearchResult> {
         val sources = bookSourceDao.getEnabledSources()
-        val results = mutableListOf<SearchResult>()
-        for (source in sources) {
-            try {
-                results.addAll(parser.searchNovel(source, keyword))
-            } catch (_: Exception) {}
-        }
-        return results
+        return parser.searchNovelAllSources(sources, keyword, onBatch)
     }
 
     suspend fun addFromSearchResult(result: SearchResult): Long {
@@ -72,7 +71,8 @@ class NovelRepository(context: Context) {
         if (source != null) {
             try {
                 val chapters = parser.getNovelChapters(source, result.url)
-                val entities = chapters.mapIndexed { index, info ->
+                val safeChapters = chapters.ifEmpty { emptyList() }
+                val entities = safeChapters.mapIndexed { index, info ->
                     NovelChapter(
                         novelId = novelId,
                         title = info.title,
@@ -83,15 +83,28 @@ class NovelRepository(context: Context) {
                 chapterDao.insertAll(entities)
                 novelDao.update(novelDao.getNovelById(novelId)!!.copy(totalChapters = entities.size))
             } catch (_: Exception) {}
+        } else {
+            // No source means we cannot reliably load chapters/content. Keep bookshelf entry only.
         }
         return novelId
     }
 
     suspend fun loadChapterContent(novelId: Long, chapterIndex: Int): String {
-        val chapter = chapterDao.getChapterByIndex(novelId, chapterIndex) ?: return ""
+        val novel = novelDao.getNovelById(novelId) ?: return ""
+        var chapter = chapterDao.getChapterByIndex(novelId, chapterIndex)
+        if (chapter == null) {
+            val sourceForChapters = bookSourceDao.getEnabledSources().find { it.name == novel.sourceName } ?: return ""
+            val chapters = parser.getNovelChapters(sourceForChapters, novel.sourceUrl)
+            if (chapters.isEmpty()) return ""
+            val entities = chapters.mapIndexed { index, info ->
+                NovelChapter(novelId = novelId, title = info.title, url = info.url, index = index)
+            }
+            chapterDao.insertAll(entities)
+            novelDao.update(novel.copy(totalChapters = entities.size))
+            chapter = entities.getOrNull(chapterIndex) ?: return ""
+        }
         if (chapter.isCached && chapter.content.isNotBlank()) return chapter.content
 
-        val novel = novelDao.getNovelById(novelId) ?: return ""
         val source = bookSourceDao.getEnabledSources().find { it.name == novel.sourceName } ?: return ""
 
         val content = parser.getNovelContent(source, chapter.url)
@@ -105,6 +118,7 @@ class NovelRepository(context: Context) {
         val novel = novelDao.getNovelById(novelId) ?: return
         val source = bookSourceDao.getEnabledSources().find { it.name == novel.sourceName } ?: return
         val chapters = parser.getNovelChapters(source, novel.sourceUrl)
+        if (chapters.isEmpty()) return
         val entities = chapters.mapIndexed { index, info ->
             NovelChapter(novelId = novelId, title = info.title, url = info.url, index = index)
         }
@@ -113,11 +127,25 @@ class NovelRepository(context: Context) {
         novelDao.update(novel.copy(totalChapters = entities.size))
     }
 
-    suspend fun switchSource(novelId: Long, newSourceName: String) {
-        val novel = novelDao.getNovelById(novelId) ?: return
-        val newSource = bookSourceDao.getEnabledSources().find { it.name == newSourceName } ?: return
+    /** Find sources that have results for the given title; returns list of (sourceName, firstResultUrl) */
+    suspend fun findSourcesForTitle(title: String): List<Pair<String, String>> {
+        val sources = bookSourceDao.getEnabledSources()
+        return sources.mapNotNull { source ->
+            try {
+                val results = withTimeoutOrNull(8_000L) {
+                    parser.searchNovel(source, title).filter { it.title.contains(title, ignoreCase = true) }
+                }
+                if (!results.isNullOrEmpty()) source.name to results.first().url else null
+            } catch (_: Exception) { null }
+        }
+    }
+
+    suspend fun switchSource(novelId: Long, newSourceName: String): Boolean {
+        val novel = novelDao.getNovelById(novelId) ?: return false
+        val newSource = bookSourceDao.getEnabledSources().find { it.name == newSourceName } ?: return false
         val results = parser.searchNovel(newSource, novel.title)
-        val match = results.firstOrNull { it.title == novel.title } ?: results.firstOrNull() ?: return
+            .filter { it.title.contains(novel.title, ignoreCase = true) }
+        val match = results.firstOrNull() ?: return false
         novelDao.update(
             novel.copy(
                 sourceUrl = match.url,
@@ -127,12 +155,14 @@ class NovelRepository(context: Context) {
             )
         )
         val chapters = parser.getNovelChapters(newSource, match.url)
+        if (chapters.isEmpty()) return false
         val entities = chapters.mapIndexed { index, info ->
             NovelChapter(novelId = novelId, title = info.title, url = info.url, index = index)
         }
         chapterDao.deleteByNovelId(novelId)
         chapterDao.insertAll(entities)
         novelDao.update(novelDao.getNovelById(novelId)!!.copy(totalChapters = entities.size))
+        return true
     }
 
     suspend fun importFromUrl(url: String): Long {

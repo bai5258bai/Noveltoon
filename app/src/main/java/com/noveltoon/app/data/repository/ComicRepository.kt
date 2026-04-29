@@ -34,15 +34,12 @@ class ComicRepository(context: Context) {
 
     suspend fun getChaptersList(comicId: Long): List<ComicChapter> = chapterDao.getChaptersList(comicId)
 
-    suspend fun search(keyword: String): List<SearchResult> {
+    suspend fun search(
+        keyword: String,
+        onBatch: (suspend (List<SearchResult>) -> Unit)? = null
+    ): List<SearchResult> {
         val sources = comicSourceDao.getEnabledSources()
-        val results = mutableListOf<SearchResult>()
-        for (source in sources) {
-            try {
-                results.addAll(parser.searchComic(source, keyword))
-            } catch (_: Exception) {}
-        }
-        return results
+        return parser.searchComicAllSources(sources, keyword, onBatch)
     }
 
     suspend fun addFromSearchResult(result: SearchResult): Long {
@@ -64,10 +61,12 @@ class ComicRepository(context: Context) {
             try {
                 val chapters = parser.getComicChapters(source, result.url)
                 val entities = chapters.mapIndexed { index, info ->
-                    ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+                    ComicChapter(comicId = comicId, title = info.title.ifBlank { result.title }, url = info.url, index = index)
                 }
-                chapterDao.insertAll(entities)
-                comicDao.update(comicDao.getComicById(comicId)!!.copy(totalChapters = entities.size))
+                if (entities.isNotEmpty()) {
+                    chapterDao.insertAll(entities)
+                    comicDao.update(comicDao.getComicById(comicId)!!.copy(totalChapters = entities.size))
+                }
             } catch (_: Exception) {}
         }
         return comicId
@@ -93,18 +92,32 @@ class ComicRepository(context: Context) {
         val source = comicSourceDao.getEnabledSources().find { it.name == comic.sourceName } ?: return
         val chapters = parser.getComicChapters(source, comic.sourceUrl)
         val entities = chapters.mapIndexed { index, info ->
-            ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+            ComicChapter(comicId = comicId, title = info.title.ifBlank { comic.title }, url = info.url, index = index)
         }
+        if (entities.isEmpty()) return
         chapterDao.deleteByComicId(comicId)
         chapterDao.insertAll(entities)
         comicDao.update(comic.copy(totalChapters = entities.size))
     }
 
-    suspend fun switchSource(comicId: Long, newSourceName: String) {
-        val comic = comicDao.getComicById(comicId) ?: return
-        val newSource = comicSourceDao.getEnabledSources().find { it.name == newSourceName } ?: return
+    suspend fun findSourcesForTitle(title: String): List<Pair<String, String>> {
+        val sources = comicSourceDao.getEnabledSources()
+        return sources.mapNotNull { source ->
+            try {
+                val results = kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                    parser.searchComic(source, title).filter { it.title.contains(title, ignoreCase = true) }
+                }
+                if (!results.isNullOrEmpty()) source.name to results.first().url else null
+            } catch (_: Exception) { null }
+        }
+    }
+
+    suspend fun switchSource(comicId: Long, newSourceName: String): Boolean {
+        val comic = comicDao.getComicById(comicId) ?: return false
+        val newSource = comicSourceDao.getEnabledSources().find { it.name == newSourceName } ?: return false
         val results = parser.searchComic(newSource, comic.title)
-        val match = results.firstOrNull { it.title == comic.title } ?: results.firstOrNull() ?: return
+            .filter { it.title.contains(comic.title, ignoreCase = true) }
+        val match = results.firstOrNull() ?: return false
         comicDao.update(
             comic.copy(
                 sourceUrl = match.url,
@@ -115,11 +128,13 @@ class ComicRepository(context: Context) {
         )
         val chapters = parser.getComicChapters(newSource, match.url)
         val entities = chapters.mapIndexed { index, info ->
-            ComicChapter(comicId = comicId, title = info.title, url = info.url, index = index)
+            ComicChapter(comicId = comicId, title = info.title.ifBlank { comic.title }, url = info.url, index = index)
         }
+        if (entities.isEmpty()) return false
         chapterDao.deleteByComicId(comicId)
         chapterDao.insertAll(entities)
         comicDao.update(comicDao.getComicById(comicId)!!.copy(totalChapters = entities.size))
+        return true
     }
 
     suspend fun importFromUrl(url: String): Long {
