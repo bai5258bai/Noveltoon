@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.SwipeDown
 import androidx.compose.material.icons.filled.SwipeLeft
 import androidx.compose.material.icons.filled.SwipeRight
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -67,9 +68,12 @@ fun ComicReaderScreen(
     val chapters by viewModel.chapters.collectAsState()
     val images by viewModel.images.collectAsState()
     val isLoading by viewModel.isLoadingImages.collectAsState()
+    val imageLoadError by viewModel.imageLoadError.collectAsState()
 
     val readingDirection by prefs.comicReadingDirection.collectAsState(initial = 2)
     val sources by viewModel.comicSources.collectAsState()
+    val availableSources by viewModel.availableSources.collectAsState()
+    val isFindingSources by viewModel.isFindingSources.collectAsState()
 
     var currentChapterIndex by remember { mutableIntStateOf(initialChapterIndex) }
     var currentPageIndex by remember { mutableIntStateOf(0) }
@@ -120,9 +124,38 @@ fun ComicReaderScreen(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = Color.White)
             }
-        } else if (images.isEmpty()) {
+        } else if (!isLoading && images.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(stringResource(R.string.no_images), color = Color.White)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.content_load_failed),
+                        color = Color.White.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(
+                        onClick = { viewModel.loadChapterImages(comicId, currentChapterIndex) },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.retry))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        onClick = { showSourceSwitch = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White)
+                    ) {
+                        Text(stringResource(R.string.switch_source))
+                    }
+                }
             }
         } else {
             when (readingDirection) {
@@ -231,9 +264,14 @@ fun ComicReaderScreen(
     }
 
     if (showSourceSwitch) {
+        LaunchedEffect(Unit) {
+            viewModel.findAvailableSources(comicId)
+        }
         SourceSwitchDialog(
             currentSourceName = comic?.sourceName ?: "",
-            sourceNames = sources.filter { it.enabled }.map { it.name },
+            sourceNames = if (availableSources.isNotEmpty()) availableSources
+                          else sources.filter { it.enabled }.map { it.name },
+            isLoading = isFindingSources,
             onDismiss = { showSourceSwitch = false },
             onSelect = { name ->
                 showSourceSwitch = false

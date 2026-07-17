@@ -30,9 +30,14 @@
     <string name="switch_source">切换源</string>
     <string name="builtin_badge">内置</string>
     <string name="deleted_count">已删除 %d 个</string>
-    <string name="import_source_hint">支持直接粘贴 JSON 或输入指向 JSON 文件的 URL（如 GitHub raw 链接）</string>
-    <string name="paste_json_or_url">JSON 内容或 URL</string>
+    <string name="import_source_hint">支持网络 URL、粘贴 JSON、本地文件、剪贴板；兼容阅读3.0 CSS 规则（含 Base64/gzip 源包）</string>
+    <string name="paste_json_or_url">JSON / URL / Base64</string>
     <string name="import_success">导入成功：%d 个</string>
+    <string name="import_success_updated">已更新：%d 个</string>
+    <string name="import_success_mixed">新增 %1$d 个，更新 %2$d 个</string>
+    <string name="paste_clipboard">剪贴板</string>
+    <string name="import_local_file_source">本地文件</string>
+    <string name="clipboard_empty">剪贴板为空</string>
     <string name="import_failed">导入失败：内容格式不正确或网络错误</string>
     <string name="import_failed_detail">导入失败：%s</string>
     <string name="import_url_success">导入成功</string>
@@ -135,4 +140,21 @@
     <string name="about_version">版本 %s</string>
     <string name="about_developer">开发者：Bai.</string>
     <string name="about_disclaimer">仅供个人使用，无联网商用行为。所有内容来自本地文件或手动输入的网络地址。</string>
+
+    <!-- Search -->
+    <string name="search_results_label">热门搜索</string>
+    <string name="searching_hint">正在从多个源搜索，有结果将立即显示...</string>
+
+    <!-- Source management v1.0.5 -->
+    <string name="source_check">检测有效性</string>
+    <string name="source_checking">正在检测源有效性...</string>
+    <string name="source_check_done" formatted="false">检测完成：%d 个可用，%d 个失效</string>
+    <string name="source_current">当前</string>
+    <string name="switch_source_hint">以下源含有此书籍/漫画资源，点击切换</string>
+    <string name="source_finding">正在查找含此书目的源...</string>
+    <string name="source_none_found">未找到含此书目的其他源</string>
+
+    <!-- Reader v1.0.6 -->
+    <string name="content_load_failed">内容加载失败</string>
+    <string name="retry">重试</string>
 </resources>

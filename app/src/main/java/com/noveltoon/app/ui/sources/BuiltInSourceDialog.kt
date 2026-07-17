@@ -88,23 +88,26 @@ fun BuiltInSourceDialog(
     val repo = remember { SourceRepository(context) }
     val scope = rememberCoroutineScope()
 
-    val bookSources by repo.getAllBookSources().collectAsState(initial = emptyList())
-    val comicSources by repo.getAllComicSources().collectAsState(initial = emptyList())
+    // Collect all sources live - Room will push updates after init completes
+    val bookSources by repo.getAllBookSources().collectAsState(initial = null)
+    val comicSources by repo.getAllComicSources().collectAsState(initial = null)
 
-    val builtInBook = bookSources.filter { it.isBuiltIn }
-    val builtInComic = comicSources.filter { it.isBuiltIn }
-    var initDone by remember { mutableStateOf(false) }
+    val builtInBook = bookSources?.filter { it.isBuiltIn } ?: emptyList()
+    val builtInComic = comicSources?.filter { it.isBuiltIn } ?: emptyList()
+
+    // initDone = true only after init AND Room has emitted at least once
+    val initDone = bookSources != null && comicSources != null
     var initError by remember { mutableStateOf<String?>(null) }
 
     var tabIndex by remember { mutableIntStateOf(0) }
 
+    // Always re-run initIfNeeded when dialog opens to ensure built-ins are in DB
     LaunchedEffect(Unit) {
         runCatching {
             SourceInitializer.initIfNeeded(context)
         }.onFailure {
-            initError = it.message
+            initError = it.message ?: "初始化失败"
         }
-        initDone = true
     }
 
     AlertDialog(

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Source
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,7 +71,10 @@ fun NovelReaderScreen(
     val chapters by viewModel.chapters.collectAsState()
     val content by viewModel.chapterContent.collectAsState()
     val isLoading by viewModel.isLoadingContent.collectAsState()
+    val contentLoadError by viewModel.contentLoadError.collectAsState()
     val sources by viewModel.bookSources.collectAsState()
+    val availableSources by viewModel.availableSources.collectAsState()
+    val isFindingSources by viewModel.isFindingSources.collectAsState()
 
     val fontSize by prefs.novelFontSize.collectAsState(initial = 18f)
     val lineSpacing by prefs.novelLineSpacing.collectAsState(initial = 1.5f)
@@ -142,6 +146,33 @@ fun NovelReaderScreen(
         if (isLoading && content.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
+            }
+        } else if (!isLoading && contentLoadError && content.isBlank()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = textColor.copy(alpha = 0.4f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.content_load_failed),
+                        color = textColor.copy(alpha = 0.6f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    OutlinedButton(onClick = { viewModel.loadChapter(novelId, currentChapterIndex) }) {
+                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.retry))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = { showSourceSwitch = true }) {
+                        Text(stringResource(R.string.switch_source), color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         } else {
             val chapterTitle = chapters.getOrNull(currentChapterIndex)?.title ?: ""
@@ -335,9 +366,14 @@ fun NovelReaderScreen(
     }
 
     if (showSourceSwitch) {
+        LaunchedEffect(Unit) {
+            viewModel.findAvailableSources(novelId)
+        }
         SourceSwitchDialog(
             currentSourceName = novel?.sourceName ?: "",
-            sourceNames = sources.filter { it.enabled }.map { it.name },
+            sourceNames = if (availableSources.isNotEmpty()) availableSources
+                          else sources.filter { it.enabled }.map { it.name },
+            isLoading = isFindingSources,
             onDismiss = { showSourceSwitch = false },
             onSelect = { name ->
                 showSourceSwitch = false
@@ -651,7 +687,8 @@ fun PageReader(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = pageMargin.dp, vertical = 8.dp),
+                    .navigationBarsPadding()
+                    .padding(horizontal = pageMargin.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -848,10 +885,21 @@ fun ReaderSettingsPanel(
     }
 }
 
+/**
+ * @param sourceEntries list of (sourceName, isSearching, hasResult)
+ *   isSearching = currently probing; hasResult = probe found the title in this source
+ */
+data class SourceSwitchEntry(
+    val name: String,
+    val isSearching: Boolean = false,
+    val hasResult: Boolean? = null   // null=unchecked
+)
+
 @Composable
 fun SourceSwitchDialog(
     currentSourceName: String,
     sourceNames: List<String>,
+    isLoading: Boolean = false,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit
 ) {
@@ -859,25 +907,56 @@ fun SourceSwitchDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.switch_source)) },
         text = {
-            Column(modifier = Modifier.heightIn(max = 360.dp)) {
-                if (sourceNames.isEmpty()) {
-                    Text(stringResource(R.string.no_sources))
+            Column(modifier = Modifier.heightIn(max = 440.dp)) {
+                if (isLoading) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.source_finding),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 } else {
+                    Text(
+                        stringResource(
+                            if (sourceNames.isEmpty()) R.string.source_none_found
+                            else R.string.switch_source_hint
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                if (sourceNames.isNotEmpty()) {
                     LazyColumn {
                         items(sourceNames) { name ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onSelect(name) }
-                                    .padding(vertical = 12.dp),
+                                    .clickable(enabled = name != currentSourceName) { onSelect(name) }
+                                    .padding(vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
                                     selected = name == currentSourceName,
-                                    onClick = { onSelect(name) }
+                                    onClick = { if (name != currentSourceName) onSelect(name) }
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text(name)
+                                Text(
+                                    name,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (name == currentSourceName) {
+                                    AssistChip(
+                                        onClick = {},
+                                        label = { Text(stringResource(R.string.source_current), style = MaterialTheme.typography.labelSmall) },
+                                        modifier = Modifier.height(24.dp)
+                                    )
+                                }
                             }
                         }
                     }
