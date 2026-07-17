@@ -26,6 +26,7 @@ object FileImporter {
                 val chapters = parseTxtChapters(content)
                 val novel = Novel(
                     title = fileName.removeSuffix(".txt"),
+                    sourceName = "Local Import",
                     isLocal = true,
                     localPath = uri.toString(),
                     totalChapters = chapters.size
@@ -94,6 +95,7 @@ object FileImporter {
 
                 val comic = Comic(
                     title = fileName.removeSuffix(".zip").removeSuffix(".cbz"),
+                    sourceName = "Local Import",
                     isLocal = true,
                     localPath = tempDir.absolutePath,
                     totalChapters = 1

@@ -30,9 +30,14 @@
     <string name="switch_source">切换源</string>
     <string name="builtin_badge">内置</string>
     <string name="deleted_count">已删除 %d 个</string>
-    <string name="import_source_hint">支持直接粘贴 JSON 或输入指向 JSON 文件的 URL（如 GitHub raw 链接）</string>
-    <string name="paste_json_or_url">JSON 内容或 URL</string>
+    <string name="import_source_hint">支持网络 URL、粘贴 JSON、本地文件、剪贴板；兼容阅读3.0 CSS 规则（含 Base64/gzip 源包）</string>
+    <string name="paste_json_or_url">JSON / URL / Base64</string>
     <string name="import_success">导入成功：%d 个</string>
+    <string name="import_success_updated">已更新：%d 个</string>
+    <string name="import_success_mixed">新增 %1$d 个，更新 %2$d 个</string>
+    <string name="paste_clipboard">剪贴板</string>
+    <string name="import_local_file_source">本地文件</string>
+    <string name="clipboard_empty">剪贴板为空</string>
     <string name="import_failed">导入失败：内容格式不正确或网络错误</string>
     <string name="import_failed_detail">导入失败：%s</string>
     <string name="import_url_success">导入成功</string>

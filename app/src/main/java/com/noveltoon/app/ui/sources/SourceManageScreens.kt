@@ -1,5 +1,10 @@
 package com.noveltoon.app.ui.sources
 
+import android.content.ClipboardManager
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,7 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,8 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.noveltoon.app.R
-import com.noveltoon.app.data.entity.BookSource
-import com.noveltoon.app.data.entity.ComicSource
 import com.noveltoon.app.data.repository.SourceRepository
 import kotlinx.coroutines.launch
 
@@ -38,9 +43,21 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
     var importJson by remember { mutableStateOf("") }
     var importing by remember { mutableStateOf(false) }
     var snackbarText by remember { mutableStateOf("") }
-    // validity: id -> true/false/null(unchecked)
     var validity by remember { mutableStateOf(mapOf<Long, Boolean>()) }
-    var checking by remember { mutableStateOf(false) }
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            importing = true
+            val result = repo.importBookSourcesFromUri(uri)
+            importing = false
+            showImportDialog = false
+            importJson = ""
+            snackbarText = formatImportMessage(context, result)
+        }
+    }
 
     SourceManageScaffold(
         title = stringResource(R.string.manage_book_sources),
@@ -48,20 +65,20 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
         onAdd = { showImportDialog = true },
         onCheckValidity = {
             scope.launch {
-                checking = true
                 snackbarText = context.getString(R.string.source_checking)
                 val result = mutableMapOf<Long, Boolean>()
                 sources.forEach { s ->
                     result[s.id] = repo.checkBookSourceValid(s)
                 }
                 validity = result
-                checking = false
                 val ok = result.values.count { it }
                 val fail = result.values.count { !it }
                 snackbarText = context.getString(R.string.source_check_done, ok, fail)
             }
         },
-        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn, validity[it.id]) },
+        sources = sources.map {
+            SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn, validity[it.id])
+        },
         selectedIds = selectedIds,
         snackbarText = snackbarText,
         onSnackbarDismiss = { snackbarText = "" },
@@ -99,6 +116,15 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
             json = importJson,
             onJsonChange = { importJson = it },
             importing = importing,
+            onPasteClipboard = {
+                val text = readClipboard(context)
+                if (!text.isNullOrBlank()) {
+                    importJson = text
+                } else {
+                    snackbarText = context.getString(R.string.clipboard_empty)
+                }
+            },
+            onPickFile = { filePicker.launch("*/*") },
             onImport = {
                 scope.launch {
                     importing = true
@@ -106,13 +132,7 @@ fun BookSourceManageScreen(onNavigateBack: () -> Unit) {
                     importing = false
                     showImportDialog = false
                     importJson = ""
-                    snackbarText = if (result.addedCount > 0)
-                        context.getString(R.string.import_success, result.addedCount)
-                    else
-                        context.getString(
-                            R.string.import_failed_detail,
-                            result.errorMessage ?: context.getString(R.string.import_failed)
-                        )
+                    snackbarText = formatImportMessage(context, result)
                 }
             }
         )
@@ -132,7 +152,20 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
     var importing by remember { mutableStateOf(false) }
     var snackbarText by remember { mutableStateOf("") }
     var validity by remember { mutableStateOf(mapOf<Long, Boolean>()) }
-    var checking by remember { mutableStateOf(false) }
+
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            importing = true
+            val result = repo.importComicSourcesFromUri(uri)
+            importing = false
+            showImportDialog = false
+            importJson = ""
+            snackbarText = formatImportMessage(context, result)
+        }
+    }
 
     SourceManageScaffold(
         title = stringResource(R.string.manage_comic_sources),
@@ -140,20 +173,20 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
         onAdd = { showImportDialog = true },
         onCheckValidity = {
             scope.launch {
-                checking = true
                 snackbarText = context.getString(R.string.source_checking)
                 val result = mutableMapOf<Long, Boolean>()
                 sources.forEach { s ->
                     result[s.id] = repo.checkComicSourceValid(s)
                 }
                 validity = result
-                checking = false
                 val ok = result.values.count { it }
                 val fail = result.values.count { !it }
                 snackbarText = context.getString(R.string.source_check_done, ok, fail)
             }
         },
-        sources = sources.map { SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn, validity[it.id]) },
+        sources = sources.map {
+            SourceListEntry(it.id, it.name, it.baseUrl, it.enabled, it.isBuiltIn, validity[it.id])
+        },
         selectedIds = selectedIds,
         snackbarText = snackbarText,
         onSnackbarDismiss = { snackbarText = "" },
@@ -191,6 +224,15 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
             json = importJson,
             onJsonChange = { importJson = it },
             importing = importing,
+            onPasteClipboard = {
+                val text = readClipboard(context)
+                if (!text.isNullOrBlank()) {
+                    importJson = text
+                } else {
+                    snackbarText = context.getString(R.string.clipboard_empty)
+                }
+            },
+            onPickFile = { filePicker.launch("*/*") },
             onImport = {
                 scope.launch {
                     importing = true
@@ -198,16 +240,34 @@ fun ComicSourceManageScreen(onNavigateBack: () -> Unit) {
                     importing = false
                     showImportDialog = false
                     importJson = ""
-                    snackbarText = if (result.addedCount > 0)
-                        context.getString(R.string.import_success, result.addedCount)
-                    else
-                        context.getString(
-                            R.string.import_failed_detail,
-                            result.errorMessage ?: context.getString(R.string.import_failed)
-                        )
+                    snackbarText = formatImportMessage(context, result)
                 }
             }
         )
+    }
+}
+
+private fun readClipboard(context: Context): String? {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    return clipboard?.primaryClip?.takeIf { it.itemCount > 0 }
+        ?.getItemAt(0)
+        ?.coerceToText(context)
+        ?.toString()
+}
+
+private fun formatImportMessage(context: Context, result: SourceRepository.ImportResult): String {
+    return when {
+        result.totalCount > 0 && result.updatedCount > 0 && result.addedCount > 0 ->
+            context.getString(R.string.import_success_mixed, result.addedCount, result.updatedCount)
+        result.totalCount > 0 && result.updatedCount > 0 ->
+            context.getString(R.string.import_success_updated, result.updatedCount)
+        result.totalCount > 0 ->
+            context.getString(R.string.import_success, result.addedCount)
+        else ->
+            context.getString(
+                R.string.import_failed_detail,
+                result.errorMessage ?: context.getString(R.string.import_failed)
+            )
     }
 }
 
@@ -217,7 +277,7 @@ data class SourceListEntry(
     val url: String,
     val enabled: Boolean,
     val isBuiltIn: Boolean = false,
-    val isValid: Boolean? = null   // null=unchecked, true=ok, false=invalid
+    val isValid: Boolean? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -330,12 +390,15 @@ private fun SourceCheckListItem(
         Spacer(Modifier.width(4.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // validity icon
                 when (entry.isValid) {
-                    true -> Icon(Icons.Default.CheckCircle, null,
-                        tint = Color(0xFF4CAF50), modifier = Modifier.size(14.dp))
-                    false -> Icon(Icons.Default.Error, null,
-                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                    true -> Icon(
+                        Icons.Default.CheckCircle, null,
+                        tint = Color(0xFF4CAF50), modifier = Modifier.size(14.dp)
+                    )
+                    false -> Icon(
+                        Icons.Default.Error, null,
+                        tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp)
+                    )
                     null -> {}
                 }
                 if (entry.isValid != null) Spacer(Modifier.width(4.dp))
@@ -436,6 +499,8 @@ private fun ImportSourceJsonDialog(
     json: String,
     onJsonChange: (String) -> Unit,
     importing: Boolean,
+    onPasteClipboard: () -> Unit,
+    onPickFile: () -> Unit,
     onImport: () -> Unit
 ) {
     AlertDialog(
@@ -448,6 +513,30 @@ private fun ImportSourceJsonDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onPasteClipboard,
+                        enabled = !importing,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.ContentPaste, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.paste_clipboard))
+                    }
+                    OutlinedButton(
+                        onClick = onPickFile,
+                        enabled = !importing,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Default.FolderOpen, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.import_local_file_source))
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = json,

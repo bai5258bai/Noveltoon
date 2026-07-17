@@ -141,37 +141,83 @@ class SourceParser {
 
     // ─── rule engine ──────────────────────────────────────────────────────────
 
+    private data class ParsedRule(
+        val selector: String,
+        val attr: String,
+        val replacements: List<Pair<Regex, String>>
+    )
+
+    /** Supports `selector@attr##regex##replacement` (Legado-style replace chains). */
+    private fun parseRule(rule: String): ParsedRule? {
+        if (rule.isBlank()) return null
+        if (rule.contains("@js", ignoreCase = true) || rule.contains("<js>", ignoreCase = true)) {
+            return null
+        }
+        val hashParts = rule.split("##")
+        val main = hashParts[0]
+        val replacements = mutableListOf<Pair<Regex, String>>()
+        var i = 1
+        while (i < hashParts.size) {
+            val pattern = hashParts[i]
+            val replacement = hashParts.getOrNull(i + 1) ?: ""
+            if (pattern.isNotEmpty()) {
+                try {
+                    replacements += Regex(pattern) to replacement
+                } catch (_: Exception) {}
+            }
+            i += 2
+        }
+        val parts = main.split("@", limit = 2)
+        val selector = parts[0].trim()
+        val attr = if (parts.size > 1) parts[1].trim().ifBlank { "text" } else "text"
+        return ParsedRule(selector, attr, replacements)
+    }
+
+    private fun applyReplacements(value: String, replacements: List<Pair<Regex, String>>): String {
+        var result = value
+        for ((regex, replacement) in replacements) {
+            result = result.replace(regex, replacement)
+        }
+        return result
+    }
+
     private fun applyRule(doc: Document, rule: String, baseUrl: String = ""): List<String> {
-        if (rule.isBlank()) return emptyList()
+        val parsed = parseRule(rule) ?: return emptyList()
         return try {
-            val parts = rule.split("@", limit = 2)
-            val cssSelector = parts[0]
-            val attr = if (parts.size > 1) parts[1] else "text"
-            val elements = if (cssSelector.isBlank()) {
+            val elements = if (parsed.selector.isBlank()) {
                 // Reader-style rules often use "@text" / "@href" to mean current item.
                 // We parse item HTML as a mini document, so the first body child is the current item.
                 doc.body()?.children()?.takeIf { it.isNotEmpty() } ?: doc.children()
             } else {
-                doc.select(cssSelector)
+                doc.select(parsed.selector)
             }
-            elements.map { element -> extractValue(element, attr, baseUrl) }
-        } catch (_: Exception) { emptyList() }
+            elements.map { element ->
+                applyReplacements(extractValue(element, parsed.attr, baseUrl), parsed.replacements)
+            }.filter { it.isNotBlank() }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     private fun applySingleRule(doc: Document, rule: String, baseUrl: String = "") =
         applyRule(doc, rule, baseUrl).firstOrNull() ?: ""
 
     private fun extractValue(element: Element, attr: String, baseUrl: String = ""): String {
-        val value = when (attr) {
+        val raw = when (attr) {
             "text" -> element.text()
+            "ownText" -> element.ownText()
             "html" -> element.html()
+            "all" -> element.wholeText()
             "src" -> element.absUrl("src").ifEmpty { element.attr("src") }
             "href" -> element.absUrl("href").ifEmpty { element.attr("href") }
-            "data-src", "data-original", "data-url", "data-lazy-src" ->
+            "data-src", "data-original", "data-url", "data-lazy-src", "data-actualsrc" ->
                 element.absUrl(attr).ifEmpty { element.attr(attr) }
             else -> element.absUrl(attr).ifEmpty { element.attr(attr) }
         }.trim()
-        return resolveUrl(value, baseUrl)
+        return when (attr) {
+            "text", "ownText", "html", "all" -> raw
+            else -> resolveUrl(raw, baseUrl)
+        }
     }
 
     private fun resolveUrl(value: String, baseUrl: String = ""): String {
@@ -179,9 +225,21 @@ class SourceParser {
         val cleaned = value.trim().replace("\\/", "/")
         return when {
             cleaned.startsWith("//") -> "https:$cleaned"
+            cleaned.startsWith("http://") || cleaned.startsWith("https://") || cleaned.startsWith("file:") -> cleaned
+            cleaned.startsWith("data:") || cleaned.startsWith("javascript:") -> cleaned
             cleaned.startsWith("/") && baseUrl.isNotEmpty() -> "${baseUrl.trimEnd('/')}$cleaned"
+            baseUrl.isNotEmpty() && looksLikeRelativePath(cleaned) -> {
+                "${baseUrl.trimEnd('/')}/$cleaned"
+            }
             else -> cleaned
         }
+    }
+
+    private fun looksLikeRelativePath(value: String): Boolean {
+        if (value.contains(' ') || value.contains('\n')) return false
+        // Avoid treating Chinese titles as paths
+        if (value.any { it.code > 0x7f }) return false
+        return value.contains('/') || value.contains('.') || value.startsWith("./") || value.startsWith("../")
     }
 
     private fun isLikelyChapter(title: String, href: String): Boolean {
@@ -285,9 +343,8 @@ class SourceParser {
         withTimeoutOrNull(10_000L) {
             try {
                 val encoded = URLEncoder.encode("斗罗大陆", source.searchEncoding.ifBlank { "UTF-8" })
-                val url = source.searchUrl
-                    .replace("{{keyword}}", encoded).replace("{{key}}", encoded)
-                    .let { if (!it.startsWith("http")) source.baseUrl.trimEnd('/') + "/${ it.trimStart('/') }" else it }
+                val url = buildSearchUrl(source.searchUrl, source.baseUrl, encoded)
+                if (url.isBlank()) return@withTimeoutOrNull false
                 val bytes = fetchBytesWithFallback(url)
                 val html = decodeWithCharset(bytes, source.searchEncoding, null)
                 html.isNotBlank() && !html.trimStart().lowercase().startsWith("<!doctype html><html><head><title>error")
@@ -300,9 +357,8 @@ class SourceParser {
         withTimeoutOrNull(10_000L) {
             try {
                 val encoded = URLEncoder.encode("斗罗大陆", source.searchEncoding.ifBlank { "UTF-8" })
-                val url = source.searchUrl
-                    .replace("{{keyword}}", encoded).replace("{{key}}", encoded)
-                    .let { if (!it.startsWith("http")) source.baseUrl.trimEnd('/') + "/${ it.trimStart('/') }" else it }
+                val url = buildSearchUrl(source.searchUrl, source.baseUrl, encoded)
+                if (url.isBlank()) return@withTimeoutOrNull false
                 val bytes = fetchBytesWithFallback(url)
                 val html = decodeWithCharset(bytes, source.searchEncoding, null)
                 html.isNotBlank()
@@ -384,10 +440,8 @@ class SourceParser {
         return try {
             val enc = source.searchEncoding.ifBlank { "UTF-8" }
             val encodedKeyword = URLEncoder.encode(keyword, enc)
-            val searchUrl = source.searchUrl
-                .replace("{{keyword}}", encodedKeyword)
-                .replace("{{key}}", encodedKeyword)
-                .let { if (!it.startsWith("http")) source.baseUrl.trimEnd('/') + "/${it.trimStart('/')}" else it }
+            val searchUrl = buildSearchUrl(source.searchUrl, source.baseUrl, encodedKeyword)
+            if (searchUrl.isBlank()) return emptyList()
             val doc = fetchDocument(searchUrl, enc)
             if (source.searchListRule.isBlank()) return emptyList()
             doc.select(source.searchListRule).mapNotNull { element ->
@@ -402,7 +456,7 @@ class SourceParser {
                         sourceName = source.name
                     )
                 } catch (_: Exception) { null }
-            }.filter { it.title.isNotBlank() }
+            }.filter { it.title.isNotBlank() && it.url.isNotBlank() }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -456,10 +510,8 @@ class SourceParser {
         return try {
             val enc = source.searchEncoding.ifBlank { "UTF-8" }
             val encodedKeyword = URLEncoder.encode(keyword, enc)
-            val searchUrl = source.searchUrl
-                .replace("{{keyword}}", encodedKeyword)
-                .replace("{{key}}", encodedKeyword)
-                .let { if (!it.startsWith("http")) source.baseUrl.trimEnd('/') + "/${it.trimStart('/')}" else it }
+            val searchUrl = buildSearchUrl(source.searchUrl, source.baseUrl, encodedKeyword)
+            if (searchUrl.isBlank()) return emptyList()
             val doc = fetchDocument(searchUrl, enc)
             if (source.searchListRule.isBlank()) return emptyList()
             doc.select(source.searchListRule).mapNotNull { element ->
@@ -474,7 +526,7 @@ class SourceParser {
                         sourceName = source.name
                     )
                 } catch (_: Exception) { null }
-            }.filter { it.title.isNotBlank() }
+            }.filter { it.title.isNotBlank() && it.url.isNotBlank() }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -506,11 +558,51 @@ class SourceParser {
             val url = if (chapterUrl.startsWith("http")) chapterUrl
             else source.baseUrl.trimEnd('/') + "/${chapterUrl.trimStart('/')}"
             val doc = fetchDocument(url)
-            val ruleImages = applyRule(doc, source.imageListRule, source.baseUrl).filter { it.isNotBlank() }
-            if (ruleImages.isNotEmpty()) return ruleImages
+
+            // Legado-style: list selector + per-item imageUrl rule
+            if (source.imageListRule.isNotBlank() &&
+                source.imageUrlRule.isNotBlank() &&
+                !source.imageListRule.contains("@")
+            ) {
+                val fromPairs = doc.select(source.imageListRule).mapNotNull { element ->
+                    val itemDoc = Jsoup.parse(element.outerHtml(), url)
+                    applySingleRule(itemDoc, source.imageUrlRule, source.baseUrl)
+                        .takeIf { it.isNotBlank() }
+                }
+                if (fromPairs.isNotEmpty()) return fromPairs.distinct()
+            }
+
+            val ruleImages = applyRule(doc, source.imageListRule, source.baseUrl)
+                .map { resolveUrl(it, source.baseUrl) }
+                .filter { it.isNotBlank() }
+            val imageLike = ruleImages.filter { it.isImageUrlLike() || it.startsWith("http") }
+            if (imageLike.isNotEmpty()) return imageLike.distinct()
+
+            // imageListRule may return container HTML / non-image attrs — fall back
+            if (source.imageUrlRule.isNotBlank()) {
+                val byUrlRule = applyRule(doc, source.imageUrlRule, source.baseUrl)
+                    .filter { it.isNotBlank() }
+                if (byUrlRule.isNotEmpty()) return byUrlRule.distinct()
+            }
 
             extractImageUrlsFromDoc(doc, source.baseUrl)
         } catch (_: Exception) { emptyList() }
+    }
+
+    private fun buildSearchUrl(rawSearchUrl: String, baseUrl: String, encodedKeyword: String): String {
+        if (rawSearchUrl.isBlank()) return ""
+        // Strip Legado option suffix: url,{"method":"POST",...}
+        val withoutOptions = rawSearchUrl.substringBefore(",{").trim()
+        val filled = withoutOptions
+            .replace("{{keyword}}", encodedKeyword)
+            .replace("{{key}}", encodedKeyword)
+            .replace("{{searchKey}}", encodedKeyword)
+            .replace("{{SearchKey}}", encodedKeyword)
+        return when {
+            filled.startsWith("http://") || filled.startsWith("https://") -> filled
+            baseUrl.isNotBlank() -> baseUrl.trimEnd('/') + "/" + filled.trimStart('/')
+            else -> filled
+        }
     }
 
     suspend fun fetchTextFromUrl(url: String): String {

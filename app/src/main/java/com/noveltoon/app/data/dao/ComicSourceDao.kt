@@ -9,8 +9,17 @@ interface ComicSourceDao {
     @Query("SELECT * FROM comic_sources ORDER BY sortOrder ASC, name ASC")
     fun getAllSources(): Flow<List<ComicSource>>
 
+    @Query("SELECT * FROM comic_sources ORDER BY sortOrder ASC, name ASC")
+    suspend fun getAllSourcesOnce(): List<ComicSource>
+
     @Query("SELECT * FROM comic_sources WHERE enabled = 1 ORDER BY sortOrder ASC")
     suspend fun getEnabledSources(): List<ComicSource>
+
+    @Query("SELECT * FROM comic_sources WHERE name = :name LIMIT 1")
+    suspend fun findByName(name: String): ComicSource?
+
+    @Query("SELECT * FROM comic_sources WHERE name = :name AND baseUrl = :baseUrl LIMIT 1")
+    suspend fun findByNameAndBaseUrl(name: String, baseUrl: String): ComicSource?
 
     @Query("SELECT * FROM comic_sources WHERE id = :id")
     suspend fun getSourceById(id: Long): ComicSource?

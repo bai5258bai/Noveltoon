@@ -9,8 +9,17 @@ interface BookSourceDao {
     @Query("SELECT * FROM book_sources ORDER BY sortOrder ASC, name ASC")
     fun getAllSources(): Flow<List<BookSource>>
 
+    @Query("SELECT * FROM book_sources ORDER BY sortOrder ASC, name ASC")
+    suspend fun getAllSourcesOnce(): List<BookSource>
+
     @Query("SELECT * FROM book_sources WHERE enabled = 1 ORDER BY sortOrder ASC")
     suspend fun getEnabledSources(): List<BookSource>
+
+    @Query("SELECT * FROM book_sources WHERE name = :name LIMIT 1")
+    suspend fun findByName(name: String): BookSource?
+
+    @Query("SELECT * FROM book_sources WHERE name = :name AND baseUrl = :baseUrl LIMIT 1")
+    suspend fun findByNameAndBaseUrl(name: String, baseUrl: String): BookSource?
 
     @Query("SELECT * FROM book_sources WHERE id = :id")
     suspend fun getSourceById(id: Long): BookSource?

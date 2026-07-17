@@ -28,9 +28,14 @@
     <string name="switch_source">Switch Source</string>
     <string name="builtin_badge">Built-in</string>
     <string name="deleted_count">Deleted %d</string>
-    <string name="import_source_hint">You may paste JSON directly or enter a URL that returns JSON</string>
-    <string name="paste_json_or_url">JSON content or URL</string>
+    <string name="import_source_hint">Supports network URL, pasted JSON, local file, clipboard; Legado 3.0 CSS rules (incl. Base64/gzip packs)</string>
+    <string name="paste_json_or_url">JSON / URL / Base64</string>
     <string name="import_success">Imported %d sources</string>
+    <string name="import_success_updated">Updated %d sources</string>
+    <string name="import_success_mixed">Added %1$d, updated %2$d</string>
+    <string name="paste_clipboard">Clipboard</string>
+    <string name="import_local_file_source">Local file</string>
+    <string name="clipboard_empty">Clipboard is empty</string>
     <string name="import_failed">Import failed: bad format or network error</string>
     <string name="import_failed_detail">Import failed: %s</string>
     <string name="import_url_success">Import successful</string>
