@@ -14,7 +14,8 @@
     "chapterListRule": "div.chapter-list ul li a",
     "chapterNameRule": "@text",
     "chapterUrlRule": "@href",
-    "imageListRule": "div.mh_comicpic img@src",
+    "imageListRule": "div.mh_comicpic img",
+    "imageUrlRule": "@src",
     "searchEncoding": "UTF-8",
     "isBuiltIn": true
   },
@@ -33,7 +34,8 @@
     "chapterListRule": "a.comics-chapters__item",
     "chapterNameRule": "span@text",
     "chapterUrlRule": "@href",
-    "imageListRule": "amp-img.comic-contain__item@src",
+    "imageListRule": "amp-img.comic-contain__item, img.comic-contain__item",
+    "imageUrlRule": "@src",
     "searchEncoding": "UTF-8",
     "isBuiltIn": true
   },
