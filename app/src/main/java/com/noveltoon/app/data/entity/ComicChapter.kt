@@ -13,7 +13,10 @@ import androidx.room.PrimaryKey
         childColumns = ["comicId"],
         onDelete = ForeignKey.CASCADE
     )],
-    indices = [Index("comicId")]
+    indices = [
+        Index("comicId"),
+        Index(value = ["comicId", "index"])
+    ]
 )
 data class ComicChapter(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

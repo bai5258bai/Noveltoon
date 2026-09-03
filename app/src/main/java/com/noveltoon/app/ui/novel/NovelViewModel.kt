@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.noveltoon.app.data.AppDatabase
+import com.noveltoon.app.data.dao.BookSourceDao
 import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.data.entity.NovelChapter
@@ -13,9 +14,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class NovelViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = NovelRepository(application)
-    private val bookSourceDao = AppDatabase.getInstance(application).bookSourceDao()
+class NovelViewModel(
+    application: Application,
+    private val repository: NovelRepository,
+    private val bookSourceDao: BookSourceDao
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(
+        application,
+        NovelRepository(application),
+        AppDatabase.getInstance(application).bookSourceDao()
+    )
 
     val bookSources: StateFlow<List<BookSource>> = bookSourceDao.getAllSources()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
