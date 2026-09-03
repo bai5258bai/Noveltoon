@@ -53,8 +53,12 @@ jobs:
 
       - name: Prepare release APKs
         run: |
-          cp release-assets/app/build/outputs/apk/debug/app-debug.apk release-assets/NovelToon-v1.0.11-debug.apk
-          cp release-assets/app/build/outputs/apk/release/app-release-unsigned.apk release-assets/NovelToon-v1.0.11-release-unsigned.apk
+          debug_apk="$(find release-assets -type f -name 'app-debug.apk' -print -quit)"
+          release_apk="$(find release-assets -type f -name 'app-release-unsigned.apk' -print -quit)"
+          test -n "$debug_apk"
+          test -n "$release_apk"
+          cp "$debug_apk" release-assets/NovelToon-v1.0.11-debug.apk
+          cp "$release_apk" release-assets/NovelToon-v1.0.11-release-unsigned.apk
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
