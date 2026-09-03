@@ -81,10 +81,16 @@ class SourceParser {
         return result
     }
 
+    private data class FetchResult(
+        val bytes: ByteArray,
+        val finalUrl: String,
+        val contentType: String?
+    )
+
     private suspend fun fetchBytesWithFallback(
         url: String,
         extraHeaders: Map<String, String> = emptyMap()
-    ): ByteArray = withContext(Dispatchers.IO) {
+    ): FetchResult = withContext(Dispatchers.IO) {
         val candidates = buildProxyUrls(url)
         var lastEx: Exception? = null
         for (candidate in candidates) {
@@ -95,9 +101,14 @@ class SourceParser {
                     .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
                 extraHeaders.forEach { (k, v) -> reqBuilder.header(k, v) }
-                val response = client.newCall(reqBuilder.build()).execute()
-                if (response.isSuccessful) {
-                    return@withContext response.body?.bytes() ?: byteArrayOf()
+                client.newCall(reqBuilder.build()).execute().use { response ->
+                    if (response.isSuccessful) {
+                        return@withContext FetchResult(
+                            bytes = response.body?.bytes() ?: byteArrayOf(),
+                            finalUrl = response.request.url.toString(),
+                            contentType = response.header("Content-Type")
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 lastEx = e
@@ -108,15 +119,15 @@ class SourceParser {
     }
 
     private suspend fun fetchDocument(url: String, encoding: String = ""): Document {
-        val bytes = fetchBytesWithFallback(url)
-        val html = decodeWithCharset(bytes, encoding, null)
-        return Jsoup.parse(html, url)
+        val fetched = fetchBytesWithFallback(url)
+        val html = decodeWithCharset(fetched.bytes, encoding, fetched.contentType)
+        return Jsoup.parse(html, fetched.finalUrl.ifBlank { url })
     }
 
     private suspend fun fetchString(url: String, encoding: String = ""): String {
         return try {
-            val bytes = fetchBytesWithFallback(url)
-            decodeWithCharset(bytes, encoding, null)
+            val fetched = fetchBytesWithFallback(url)
+            decodeWithCharset(fetched.bytes, encoding, fetched.contentType)
         } catch (_: Exception) { "" }
     }
 
@@ -283,19 +294,43 @@ class SourceParser {
     }
 
     private fun extractImageUrlsFromDoc(doc: Document, baseUrl: String): List<String> {
-        val attrNames = listOf("src", "data-src", "data-original", "data-url", "data-lazy-src")
-        val fromTags = doc.select("img, amp-img, source").flatMap { element ->
-            attrNames.mapNotNull { attr ->
-                extractValue(element, attr, baseUrl).takeIf { it.isImageUrlLike() }
-            } + element.attr("srcset")
-                .split(",")
-                .mapNotNull { it.trim().substringBefore(" ").takeIf { url -> url.isImageUrlLike() } }
+        val attrNames = listOf(
+            "src",
+            "data-src",
+            "data-original",
+            "data-url",
+            "data-lazy-src",
+            "data-lazy",
+            "data-cfsrc",
+            "data-original-src",
+            "data-fancybox",
+            "data-image",
+            "data-img",
+            "srcset",
+            "data-srcset"
+        )
+        val fromTags = doc.select("img, amp-img, source, picture").flatMap { element ->
+            attrNames.flatMap { attr ->
+                if (attr.endsWith("srcset")) {
+                    element.attr(attr)
+                        .split(",")
+                        .mapNotNull { candidate ->
+                            candidate.trim().substringBefore(" ").takeIf { it.isNotBlank() }
+                        }
+                } else {
+                    listOf(extractValue(element, attr, baseUrl))
+                }
+            }
         }
-        val html = doc.html().replace("\\/", "/")
-        val fromScripts = Regex("""https?:[^"'\\\s]+?\.(?:jpg|jpeg|png|webp|gif)(?:\?[^"'\\\s]*)?""", RegexOption.IGNORE_CASE)
-            .findAll(html)
-            .map { it.value }
-            .toList()
+
+        val html = doc.html()
+            .replace("\\/", "/")
+            .replace("\\u002F", "/")
+        val fromScripts = Regex(
+            """(?:(?:https?:)?//|/)[^"'\\\s<>]+?\.(?:jpg|jpeg|png|webp|gif)(?:\?[^"'\\\s<>]*)?""",
+            RegexOption.IGNORE_CASE
+        ).findAll(html).map { it.value }.toList()
+
         return (fromTags + fromScripts)
             .map { resolveUrl(it, baseUrl) }
             .filter { it.isImageUrlLike() }
@@ -345,8 +380,8 @@ class SourceParser {
                 val encoded = URLEncoder.encode("斗罗大陆", source.searchEncoding.ifBlank { "UTF-8" })
                 val url = buildSearchUrl(source.searchUrl, source.baseUrl, encoded)
                 if (url.isBlank()) return@withTimeoutOrNull false
-                val bytes = fetchBytesWithFallback(url)
-                val html = decodeWithCharset(bytes, source.searchEncoding, null)
+                val fetched = fetchBytesWithFallback(url)
+                val html = decodeWithCharset(fetched.bytes, source.searchEncoding, fetched.contentType)
                 html.isNotBlank() && !html.trimStart().lowercase().startsWith("<!doctype html><html><head><title>error")
             } catch (_: Exception) { false }
         } ?: false
@@ -359,8 +394,8 @@ class SourceParser {
                 val encoded = URLEncoder.encode("斗罗大陆", source.searchEncoding.ifBlank { "UTF-8" })
                 val url = buildSearchUrl(source.searchUrl, source.baseUrl, encoded)
                 if (url.isBlank()) return@withTimeoutOrNull false
-                val bytes = fetchBytesWithFallback(url)
-                val html = decodeWithCharset(bytes, source.searchEncoding, null)
+                val fetched = fetchBytesWithFallback(url)
+                val html = decodeWithCharset(fetched.bytes, source.searchEncoding, fetched.contentType)
                 html.isNotBlank()
             } catch (_: Exception) { false }
         } ?: false
