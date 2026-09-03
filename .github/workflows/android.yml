@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -31,9 +31,50 @@ jobs:
       - name: Upload unsigned release and debug APKs
         uses: actions/upload-artifact@v4
         with:
-          name: NovelToon-v1.0.10-apks
+          name: NovelToon-v1.0.11-apks
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
           retention-days: 14
+
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download APK artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: NovelToon-v1.0.11-apks
+          path: release-assets
+
+      - name: Prepare release APKs
+        run: |
+          cp release-assets/app/build/outputs/apk/debug/app-debug.apk release-assets/NovelToon-v1.0.11-debug.apk
+          cp release-assets/app/build/outputs/apk/release/app-release-unsigned.apk release-assets/NovelToon-v1.0.11-release-unsigned.apk
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.11
+          name: NovelToon v1.0.11 - 漫画内容加载修复
+          generate_release_notes: true
+          body: |
+            ## NovelToon v1.0.11
+
+            ### 修复
+            - 修复图源章节跨域重定向后相对图片地址解析错误。
+            - 扩展懒加载图片属性、srcset、脚本图片地址和 AMP/普通 img 兼容。
+            - 为图片请求补齐浏览器请求头，改善 CDN 防盗链场景。
+
+            ### APK
+            - \`NovelToon-v1.0.11-debug.apk\`：调试安装包。
+            - \`NovelToon-v1.0.11-release-unsigned.apk\`：未签名 Release 包，仅用于测试。
+
+            > 仓库未提供发布签名密钥，因此 Release APK 未签名，不能直接覆盖已有签名版本。
+          files: |
+            release-assets/NovelToon-v1.0.11-debug.apk
+            release-assets/NovelToon-v1.0.11-release-unsigned.apk
