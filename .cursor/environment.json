@@ -1,0 +1,4 @@
+{
+  "name": "NovelToon Android",
+  "install": "bash .cursor/install.sh"
+}
