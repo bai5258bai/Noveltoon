@@ -105,6 +105,7 @@ class NovelViewModel(
 
     fun loadNovel(novelId: Long) {
         viewModelScope.launch {
+            repository.normalizeStoredChapterOrder(novelId)
             val novel = repository.getNovelById(novelId)
             _currentNovel.value = novel
             var list = repository.getChaptersList(novelId)

@@ -565,7 +565,7 @@ class SourceParser(
                 emptyList()
             }
             val chapters = if (ruleChapters.size >= 2) ruleChapters else extractGenericChapters(doc, source.baseUrl)
-            val distinct = chapters.distinctBy { it.url }.take(3000)
+            val distinct = ChapterOrder.arrange(chapters.distinctBy { it.url }.take(3000))
             if (distinct.isEmpty()) NovelAccess.noResult(emptyList(), "没有解析到目录")
             else NovelAccess.ok(distinct)
         }

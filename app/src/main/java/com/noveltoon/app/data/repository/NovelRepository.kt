@@ -5,6 +5,7 @@ import com.noveltoon.app.data.AppDatabase
 import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.data.entity.NovelChapter
+import com.noveltoon.app.data.parser.ChapterOrder
 import com.noveltoon.app.data.parser.NovelAccess
 import com.noveltoon.app.data.parser.NovelAccessKind
 import com.noveltoon.app.data.parser.SearchResult
@@ -96,6 +97,31 @@ class NovelRepository(context: Context) {
             }
         }
         return novelId
+    }
+
+    /**
+     * Catalogs saved newest-first are rewritten into reading order.
+     * A saved index of 0 stays at the start. A later bookmark is kept by chapter title.
+     */
+    suspend fun normalizeStoredChapterOrder(novelId: Long) {
+        val existing = chapterDao.getChaptersList(novelId)
+        if (!ChapterOrder.needsReverse(existing.map { it.title })) return
+        val novel = novelDao.getNovelById(novelId) ?: return
+        val ordered = existing.asReversed().mapIndexed { index, chapter -> chapter.copy(index = index) }
+        val start = ChapterOrder.restoredIndex(
+            novel.lastReadChapterIndex,
+            novel.lastChapterTitle,
+            ordered.map { it.title }
+        )
+        chapterDao.deleteByNovelId(novelId)
+        chapterDao.insertAll(ordered)
+        novelDao.update(
+            novel.copy(
+                totalChapters = ordered.size,
+                lastReadChapterIndex = start,
+                lastChapterTitle = ordered.getOrNull(start)?.title ?: novel.lastChapterTitle
+            )
+        )
     }
 
     suspend fun loadChapterContent(novelId: Long, chapterIndex: Int): NovelAccess<String> {

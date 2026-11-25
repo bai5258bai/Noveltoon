@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -67,7 +68,7 @@ fun NovelSearchScreen(
                 OutlinedTextField(
                     value = searchText,
                     onValueChange = { searchText = it },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).testTag("novel_search_field"),
                     placeholder = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Search, contentDescription = null,
@@ -83,6 +84,7 @@ fun NovelSearchScreen(
                 Spacer(Modifier.width(8.dp))
                 FilledIconButton(
                     onClick = { if (searchText.isNotBlank()) viewModel.search(searchText.trim()) },
+                    modifier = Modifier.testTag("novel_search_go"),
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(Icons.Default.Search, contentDescription = null)
