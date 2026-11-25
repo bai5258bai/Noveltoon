@@ -15,7 +15,9 @@ import okhttp3.Request
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Document
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.coroutineContext
+import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.Charset
 import java.util.concurrent.TimeUnit
@@ -61,7 +63,16 @@ private val CONTENT_JUNK_PATTERNS = listOf(
     Regex("。{4,}"),
 ).also { check(it.isNotEmpty()) }
 
-class SourceParser {
+/**
+ * CSS/HTML extraction on top of jsoup (MIT, Jonathan Hedley, https://jsoup.org).
+ * Legado and 阅读 (GPL-3.0), hectorqin/reader (AGPL-3.0) and harmony-book-source-engine
+ * (GPL-3.0) were reviewed and not copied: this repository has no license that can
+ * accept those terms, and their engines also pull a JavaScript runtime this batch
+ * does not need. [pages] lets tests supply HTML fixtures without going online.
+ */
+class SourceParser(
+    private val pages: PageSource? = null
+) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -97,7 +108,11 @@ class SourceParser {
             try {
                 val reqBuilder = Request.Builder()
                     .url(candidate)
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) " +
+                            "Chrome/120.0.0.0 Mobile Safari/537.36 NovelToon/1.0.12 (+https://github.com/bai5258bai/Noveltoon)"
+                    )
                     .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
                     .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
                 extraHeaders.forEach { (k, v) -> reqBuilder.header(k, v) }
@@ -109,16 +124,25 @@ class SourceParser {
                             contentType = response.header("Content-Type")
                         )
                     }
+                    lastEx = SourceAccessException(
+                        NovelAccessKind.NETWORK_ERROR,
+                        "HTTP ${response.code}"
+                    )
                 }
             } catch (e: Exception) {
                 lastEx = e
                 Log.w("SourceParser", "fetch failed for $candidate: ${e.message}")
             }
         }
-        throw lastEx ?: Exception("All URLs failed for $url")
+        throw lastEx ?: SourceAccessException(NovelAccessKind.NETWORK_ERROR, "无法连接 $url")
     }
 
     private suspend fun fetchDocument(url: String, encoding: String = ""): Document {
+        val fixture = pages
+        if (fixture != null) {
+            val loaded = fixture.load(url)
+            return Jsoup.parse(loaded.body, loaded.finalUrl.ifBlank { url })
+        }
         val fetched = fetchBytesWithFallback(url)
         val html = decodeWithCharset(fetched.bytes, encoding, fetched.contentType)
         return Jsoup.parse(html, fetched.finalUrl.ifBlank { url })
@@ -418,29 +442,45 @@ class SourceParser {
         sources: List<BookSource>,
         keyword: String,
         onBatch: (suspend (List<SearchResult>) -> Unit)? = null
-    ): List<SearchResult> = coroutineScope {
+    ): NovelAccess<List<SearchResult>> = coroutineScope {
+        if (sources.isEmpty()) {
+            return@coroutineScope NovelAccess.noSource(emptyList(), "没有启用的书源")
+        }
         val allResults = linkedMapOf<String, SearchResult>()
+        var sawParsed = false
+        var networkDetail = ""
+        var ruleDetail = ""
         // Keep batches small: many imported sources can otherwise exhaust sockets and crash old devices.
         sources.chunked(6).forEach { chunk ->
             coroutineContext.ensureActive()
             chunk.map { source ->
                 async {
                     coroutineContext.ensureActive()
-                    withTimeoutOrNull(8_000L) {
-                        searchNovel(source, keyword)
-                            .filter { matchesKeyword(it.title, keyword) }
-                    } ?: emptyList()
+                    withTimeoutOrNull(12_000L) { searchNovel(source, keyword) }
+                        ?: NovelAccess.network(emptyList(), "搜索超时")
                 }
-            }.awaitAll().forEach { batch ->
-                if (batch.isNotEmpty()) {
-                    batch.forEach { result ->
-                        allResults[result.sourceName + "|" + result.url + "|" + result.title] = result
+            }.awaitAll().forEach { access ->
+                when (access.kind) {
+                    NovelAccessKind.SUCCESS -> {
+                        sawParsed = true
+                        access.value.forEach { result ->
+                            allResults[result.sourceName + "|" + result.url + "|" + result.title] = result
+                        }
+                        if (access.value.isNotEmpty()) onBatch?.invoke(allResults.values.toList())
                     }
-                    onBatch?.invoke(allResults.values.toList())
+                    NovelAccessKind.NO_RESULT -> sawParsed = true
+                    NovelAccessKind.NETWORK_ERROR -> if (networkDetail.isBlank()) networkDetail = access.detail
+                    NovelAccessKind.RULE_ERROR -> if (ruleDetail.isBlank()) ruleDetail = access.detail
+                    NovelAccessKind.NO_SOURCE -> if (ruleDetail.isBlank()) ruleDetail = access.detail
                 }
             }
         }
-        allResults.values.toList()
+        when {
+            allResults.isNotEmpty() -> NovelAccess.ok(allResults.values.toList())
+            !sawParsed && networkDetail.isNotBlank() -> NovelAccess.network(emptyList(), networkDetail)
+            !sawParsed && ruleDetail.isNotBlank() -> NovelAccess.rule(emptyList(), ruleDetail)
+            else -> NovelAccess.noResult(emptyList(), "没有找到结果")
+        }
     }
 
     suspend fun searchComicAllSources(
@@ -471,15 +511,18 @@ class SourceParser {
         allResults.values.toList()
     }
 
-    suspend fun searchNovel(source: BookSource, keyword: String): List<SearchResult> {
-        return try {
+    suspend fun searchNovel(source: BookSource, keyword: String): NovelAccess<List<SearchResult>> {
+        return access(emptyList()) {
+            if (source.searchUrl.isBlank() || source.searchListRule.isBlank()) {
+                return@access NovelAccess.rule(emptyList(), "搜索地址或列表规则为空")
+            }
             val enc = source.searchEncoding.ifBlank { "UTF-8" }
             val encodedKeyword = URLEncoder.encode(keyword, enc)
             val searchUrl = buildSearchUrl(source.searchUrl, source.baseUrl, encodedKeyword)
-            if (searchUrl.isBlank()) return emptyList()
+            if (searchUrl.isBlank()) return@access NovelAccess.rule(emptyList(), "搜索地址无效")
             val doc = fetchDocument(searchUrl, enc)
-            if (source.searchListRule.isBlank()) return emptyList()
-            doc.select(source.searchListRule).mapNotNull { element ->
+            val elements = selectOrRule(doc, source.searchListRule, "搜索列表规则")
+            val parsed = elements.mapNotNull { element ->
                 try {
                     val itemDoc = Jsoup.parse(element.outerHtml(), searchUrl)
                     SearchResult(
@@ -490,18 +533,26 @@ class SourceParser {
                         latestChapter = applySingleRule(itemDoc, source.searchLatestChapterRule),
                         sourceName = source.name
                     )
-                } catch (_: Exception) { null }
+                } catch (_: Exception) {
+                    null
+                }
             }.filter { it.title.isNotBlank() && it.url.isNotBlank() }
-        } catch (_: Exception) { emptyList() }
+            val matched = parsed.filter { matchesKeyword(it.title, keyword) }
+            if (matched.isEmpty()) {
+                NovelAccess.noResult(emptyList(), if (parsed.isEmpty()) "没有解析到书目" else "没有标题包含关键词的结果")
+            } else {
+                NovelAccess.ok(matched)
+            }
+        }
     }
 
-    suspend fun getNovelChapters(source: BookSource, bookUrl: String): List<ChapterInfo> {
-        return try {
+    suspend fun getNovelChapters(source: BookSource, bookUrl: String): NovelAccess<List<ChapterInfo>> {
+        return access(emptyList()) {
             val url = if (bookUrl.startsWith("http")) bookUrl
             else source.baseUrl.trimEnd('/') + "/${bookUrl.trimStart('/')}"
             val doc = fetchDocument(url, source.searchEncoding.ifBlank { "UTF-8" })
             val ruleChapters = if (source.chapterListRule.isNotBlank()) {
-                doc.select(source.chapterListRule).map { element ->
+                selectOrRule(doc, source.chapterListRule, "目录规则").map { element ->
                     val itemDoc = Jsoup.parse(element.outerHtml(), url)
                     ChapterInfo(
                         title = applySingleRule(itemDoc, source.chapterNameRule).ifBlank { element.text() },
@@ -514,31 +565,64 @@ class SourceParser {
                 emptyList()
             }
             val chapters = if (ruleChapters.size >= 2) ruleChapters else extractGenericChapters(doc, source.baseUrl)
-            chapters.distinctBy { it.url }.take(3000)
-        } catch (_: Exception) { emptyList() }
+            val distinct = ChapterOrder.arrange(chapters.distinctBy { it.url }.take(3000))
+            if (distinct.isEmpty()) NovelAccess.noResult(emptyList(), "没有解析到目录")
+            else NovelAccess.ok(distinct)
+        }
     }
 
-    suspend fun getNovelContent(source: BookSource, chapterUrl: String): String {
-        return try {
+    suspend fun getNovelContent(source: BookSource, chapterUrl: String): NovelAccess<String> {
+        return access("") {
             val url = if (chapterUrl.startsWith("http")) chapterUrl
             else source.baseUrl.trimEnd('/') + "/${chapterUrl.trimStart('/')}"
             val enc = source.searchEncoding.ifBlank { "UTF-8" }
             val doc = fetchDocument(url, enc)
+            if (source.contentRule.isNotBlank()) {
+                val parsed = parseRule(source.contentRule)
+                    ?: return@access NovelAccess.rule("", "正文规则无效")
+                if (parsed.selector.isNotBlank()) {
+                    selectOrRule(doc, source.contentRule, "正文规则")
+                }
+            }
             var raw = applySingleRule(doc, source.contentRule)
             if (raw.isBlank()) raw = extractGenericContent(doc)
 
             if (source.contentNextPageRule.isNotBlank()) {
                 var nextUrl = applySingleRule(doc, source.contentNextPageRule, source.baseUrl)
-                var pages = 0
-                while (nextUrl.isNotBlank() && pages < 10) {
+                var pageCount = 0
+                while (nextUrl.isNotBlank() && pageCount < 10) {
                     val nextDoc = fetchDocument(nextUrl, enc)
                     raw += "\n" + applySingleRule(nextDoc, source.contentRule)
                     nextUrl = applySingleRule(nextDoc, source.contentNextPageRule, source.baseUrl)
-                    pages++
+                    pageCount++
                 }
             }
-            cleanContent(raw)
-        } catch (_: Exception) { "" }
+            val cleaned = cleanContent(raw)
+            if (cleaned.isBlank()) NovelAccess.noResult("", "这一章没有正文")
+            else NovelAccess.ok(cleaned)
+        }
+    }
+
+    private fun selectOrRule(doc: Document, rule: String, label: String): org.jsoup.select.Elements {
+        val parsed = parseRule(rule) ?: throw SourceAccessException(NovelAccessKind.RULE_ERROR, "$label 无效")
+        val selector = parsed.selector.ifBlank { return org.jsoup.select.Elements() }
+        return try {
+            doc.select(selector)
+        } catch (e: Exception) {
+            throw SourceAccessException(NovelAccessKind.RULE_ERROR, "$label 无法解析：$selector", e)
+        }
+    }
+
+    private suspend inline fun <T> access(empty: T, block: suspend () -> NovelAccess<T>): NovelAccess<T> {
+        return try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SourceAccessException) {
+            NovelAccess(e.kind, empty, e.message ?: "")
+        } catch (e: IOException) {
+            NovelAccess(NovelAccessKind.NETWORK_ERROR, empty, e.message ?: "网络失败")
+        }
     }
 
     suspend fun searchComic(source: ComicSource, keyword: String): List<SearchResult> {

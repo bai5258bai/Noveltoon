@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -72,6 +75,7 @@ fun NovelReaderScreen(
     val content by viewModel.chapterContent.collectAsState()
     val isLoading by viewModel.isLoadingContent.collectAsState()
     val contentLoadError by viewModel.contentLoadError.collectAsState()
+    val contentErrorText by viewModel.contentErrorText.collectAsState()
     val sources by viewModel.bookSources.collectAsState()
     val availableSources by viewModel.availableSources.collectAsState()
     val isFindingSources by viewModel.isFindingSources.collectAsState()
@@ -90,6 +94,9 @@ fun NovelReaderScreen(
     var showSettings by remember { mutableStateOf(false) }
     var showSourceSwitch by remember { mutableStateOf(false) }
     var chapterLoaded by remember { mutableStateOf(false) }
+    var topBarHeight by remember { mutableStateOf(0.dp) }
+    var bottomBarHeight by remember { mutableStateOf(0.dp) }
+    val overlayDensity = LocalDensity.current
 
     // Reading time tracking
     var sessionStart by remember { mutableLongStateOf(0L) }
@@ -158,7 +165,7 @@ fun NovelReaderScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        stringResource(R.string.content_load_failed),
+                        contentErrorText.ifBlank { stringResource(R.string.content_load_failed) },
                         color = textColor.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -251,7 +258,9 @@ fun NovelReaderScreen(
                         totalPagesInChapter = total
                     },
                     battery = rememberBatteryLevel().value,
-                    time = rememberCurrentTime().value
+                    time = rememberCurrentTime().value,
+                    extraTopPadding = if (showControls) topBarHeight else 0.dp,
+                    extraBottomPadding = if (showControls) bottomBarHeight else 0.dp
                 )
             }
 
@@ -267,7 +276,9 @@ fun NovelReaderScreen(
             visible = showControls,
             enter = fadeIn() + slideInVertically { -it },
             exit = fadeOut() + slideOutVertically { -it },
-            modifier = Modifier.align(Alignment.TopCenter)
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .onSizeChanged { topBarHeight = with(overlayDensity) { it.height.toDp() } }
         ) {
             ReaderTopBar(
                 title = novel?.title ?: "",
@@ -285,7 +296,9 @@ fun NovelReaderScreen(
             visible = showControls,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onSizeChanged { bottomBarHeight = with(overlayDensity) { it.height.toDp() } }
         ) {
             NovelReaderBottomBar(
                 currentChapterIndex = currentChapterIndex,
@@ -608,83 +621,88 @@ fun PageReader(
     targetPage: Int,
     onPageInfoChanged: (Int, Int) -> Unit,
     battery: Int,
-    time: String
+    time: String,
+    extraTopPadding: Dp = 0.dp,
+    extraBottomPadding: Dp = 0.dp
 ) {
     val textMeasurer = rememberTextMeasurer()
-    val density = LocalDensity.current
+    var shownPage by remember(content) { mutableIntStateOf(0) }
+    var shownTotal by remember(content) { mutableIntStateOf(1) }
+    val textStyle = TextStyle(
+        fontSize = fontSize.sp,
+        lineHeight = (fontSize * lineSpacing).sp,
+        color = textColor
+    )
 
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxSize()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .padding(top = extraTopPadding, bottom = extraBottomPadding)
     ) {
-        val availableWidthPx = with(density) { (maxWidth - (pageMargin * 2).dp).toPx() }
-        val availableHeightPx = with(density) { (maxHeight - 80.dp).toPx() }
-
-        val textStyle = TextStyle(
-            fontSize = fontSize.sp,
-            lineHeight = (fontSize * lineSpacing).sp,
-            color = textColor
-        )
-
-        val pages = remember(content, fontSize, lineSpacing, pageMargin, availableWidthPx, availableHeightPx) {
-            splitIntoPages(
-                content = content,
-                textMeasurer = textMeasurer,
-                style = textStyle,
-                widthPx = availableWidthPx.roundToInt(),
-                heightPx = availableHeightPx.roundToInt()
+        if (chapterTitle.isNotBlank()) {
+            Text(
+                text = chapterTitle,
+                style = MaterialTheme.typography.labelMedium.copy(color = textColor.copy(alpha = 0.6f)),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = pageMargin.dp, vertical = 8.dp)
+                    .testTag("chapter_heading")
             )
         }
 
-        val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
-
-        LaunchedEffect(content, pages.size) {
-            pagerState.scrollToPage(0)
-            onPageInfoChanged(0, pages.size.coerceAtLeast(1))
-        }
-
-        LaunchedEffect(pagerState.currentPage) {
-            onPageInfoChanged(pagerState.currentPage, pages.size.coerceAtLeast(1))
-        }
-
-        LaunchedEffect(targetPage) {
-            if (targetPage != pagerState.currentPage && targetPage in pages.indices) {
-                pagerState.scrollToPage(targetPage)
-            }
-        }
-
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
-                .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = pageMargin.dp)
         ) {
-            if (chapterTitle.isNotBlank()) {
-                Text(
-                    text = chapterTitle,
-                    style = MaterialTheme.typography.labelMedium.copy(color = textColor.copy(alpha = 0.6f)),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = pageMargin.dp, vertical = 8.dp)
+            val pages = remember(content, textStyle, constraints.maxWidth, constraints.maxHeight) {
+                splitIntoPages(
+                    content = content,
+                    textMeasurer = textMeasurer,
+                    style = textStyle,
+                    widthPx = constraints.maxWidth,
+                    heightPx = constraints.maxHeight
                 )
+            }
+            val pagerState = rememberPagerState(pageCount = { pages.size.coerceAtLeast(1) })
+
+            LaunchedEffect(content, pages.size) {
+                pagerState.scrollToPage(0)
+                shownPage = 0
+                shownTotal = pages.size.coerceAtLeast(1)
+                onPageInfoChanged(0, shownTotal)
+            }
+            LaunchedEffect(pagerState.currentPage, pages.size) {
+                shownPage = pagerState.currentPage
+                shownTotal = pages.size.coerceAtLeast(1)
+                onPageInfoChanged(shownPage, shownTotal)
+            }
+            LaunchedEffect(targetPage) {
+                if (targetPage != pagerState.currentPage && targetPage in pages.indices) {
+                    pagerState.scrollToPage(targetPage)
+                }
             }
 
             HorizontalPager(
                 state = pagerState,
                 userScrollEnabled = false,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxSize()
             ) { pageIndex ->
-                val pageContent = pages.getOrNull(pageIndex) ?: ""
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = pageMargin.dp)
-                ) {
-                    Text(text = pageContent, style = textStyle)
-                }
+                Text(
+                    text = pages.getOrNull(pageIndex).orEmpty(),
+                    style = textStyle,
+                    modifier = Modifier.fillMaxWidth(),
+                    overflow = TextOverflow.Clip
+                )
             }
 
-            Row(
+        }
+
+        Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
@@ -705,12 +723,11 @@ fun PageReader(
                     modifier = Modifier.padding(end = 12.dp)
                 )
                 Text(
-                    "${pagerState.currentPage + 1} / ${pages.size.coerceAtLeast(1)}",
+                    "${shownPage + 1} / ${shownTotal.coerceAtLeast(1)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = textColor.copy(alpha = 0.5f)
                 )
             }
-        }
     }
 }
 
@@ -752,45 +769,6 @@ fun ThreeZoneTapOverlay(
                 )
         )
     }
-}
-
-private fun splitIntoPages(
-    content: String,
-    textMeasurer: TextMeasurer,
-    style: TextStyle,
-    widthPx: Int,
-    heightPx: Int
-): List<String> {
-    if (content.isBlank() || widthPx <= 0 || heightPx <= 0) return listOf(content)
-
-    val pages = mutableListOf<String>()
-    val constraints = Constraints(maxWidth = widthPx, maxHeight = Int.MAX_VALUE)
-    val layout = textMeasurer.measure(text = content, style = style, constraints = constraints)
-
-    val totalHeight = layout.size.height
-    if (totalHeight <= heightPx) {
-        return listOf(content)
-    }
-
-    val lineCount = layout.lineCount
-    var pageStartLine = 0
-    var pageStartY = layout.getLineTop(0)
-
-    for (lineIndex in 0 until lineCount) {
-        val lineBottom = layout.getLineBottom(lineIndex)
-        if (lineBottom - pageStartY > heightPx && lineIndex > pageStartLine) {
-            val startOffset = layout.getLineStart(pageStartLine)
-            val endOffset = layout.getLineStart(lineIndex)
-            pages.add(content.substring(startOffset, endOffset))
-            pageStartLine = lineIndex
-            pageStartY = layout.getLineTop(lineIndex)
-        }
-    }
-    if (pageStartLine < lineCount) {
-        val startOffset = layout.getLineStart(pageStartLine)
-        pages.add(content.substring(startOffset))
-    }
-    return if (pages.isEmpty()) listOf(content) else pages
 }
 
 @Composable

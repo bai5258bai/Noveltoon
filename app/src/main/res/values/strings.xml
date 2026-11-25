@@ -157,4 +157,13 @@
     <!-- Reader v1.0.6 -->
     <string name="content_load_failed">内容加载失败</string>
     <string name="retry">重试</string>
+    <string name="source_init_failed">内置书源没有载入：%s</string>
+    <string name="search_no_source">没有启用的书源</string>
+    <string name="search_no_result">没有找到结果</string>
+    <string name="search_rule_error">书源规则无法解析：%s</string>
+    <string name="search_network_error">网络失败：%s</string>
+    <string name="content_no_result">这一章没有正文</string>
+    <string name="content_rule_error">目录或正文规则无法解析：%s</string>
+    <string name="content_network_error">网络失败：%s</string>
+    <string name="unknown_reason">未知原因</string>
 </resources>

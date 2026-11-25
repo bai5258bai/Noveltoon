@@ -8,6 +8,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.noveltoon.app.data.AppDatabase
+import com.noveltoon.app.data.SourceJson
 import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.ComicSource
 import com.noveltoon.app.data.parser.SourceParser
@@ -263,139 +264,9 @@ class SourceRepository(context: Context) {
         return ImportResult(addedCount = added, updatedCount = updated)
     }
 
-    private fun parseBookSource(o: JsonObject): BookSource? {
-        return try {
-            val ruleSearch = o.obj("ruleSearch")
-            val ruleBookInfo = o.obj("ruleBookInfo")
-            val ruleToc = o.obj("ruleToc")
-            val ruleContent = o.obj("ruleContent")
-            BookSource(
-                name = o.str("name") ?: o.str("bookSourceName") ?: return null,
-                baseUrl = normalizeBaseUrl(o.str("baseUrl") ?: o.str("bookSourceUrl") ?: ""),
-                enabled = o.get("enabled")?.asBoolean ?: true,
-                sortOrder = o.get("sortOrder")?.asInt ?: o.get("customOrder")?.asInt ?: 0,
-                searchUrl = normalizeSearchUrl(o.str("searchUrl") ?: ""),
-                searchListRule = sanitizeRule(o.str("searchListRule") ?: ruleSearch?.str("bookList") ?: ""),
-                searchNameRule = sanitizeRule(o.str("searchNameRule") ?: ruleSearch?.str("name") ?: ""),
-                searchAuthorRule = sanitizeRule(o.str("searchAuthorRule") ?: ruleSearch?.str("author") ?: ""),
-                searchCoverRule = sanitizeRule(o.str("searchCoverRule") ?: ruleSearch?.str("coverUrl") ?: ""),
-                searchUrlRule = sanitizeRule(o.str("searchUrlRule") ?: ruleSearch?.str("bookUrl") ?: ""),
-                searchLatestChapterRule = sanitizeRule(
-                    o.str("searchLatestChapterRule") ?: ruleSearch?.str("lastChapter") ?: ""
-                ),
-                detailNameRule = sanitizeRule(o.str("detailNameRule") ?: ruleBookInfo?.str("name") ?: ""),
-                detailAuthorRule = sanitizeRule(o.str("detailAuthorRule") ?: ruleBookInfo?.str("author") ?: ""),
-                detailCoverRule = sanitizeRule(o.str("detailCoverRule") ?: ruleBookInfo?.str("coverUrl") ?: ""),
-                detailDescRule = sanitizeRule(o.str("detailDescRule") ?: ruleBookInfo?.str("intro") ?: ""),
-                chapterListRule = sanitizeRule(o.str("chapterListRule") ?: ruleToc?.str("chapterList") ?: ""),
-                chapterNameRule = sanitizeRule(o.str("chapterNameRule") ?: ruleToc?.str("chapterName") ?: ""),
-                chapterUrlRule = sanitizeRule(o.str("chapterUrlRule") ?: ruleToc?.str("chapterUrl") ?: ""),
-                contentRule = sanitizeRule(o.str("contentRule") ?: ruleContent?.str("content") ?: ""),
-                contentNextPageRule = sanitizeRule(
-                    o.str("contentNextPageRule") ?: ruleContent?.str("nextContentUrl") ?: ""
-                ),
-                searchEncoding = o.str("searchEncoding") ?: o.str("charset") ?: "UTF-8",
-                isBuiltIn = false
-            )
-        } catch (_: Exception) {
-            null
-        }
-    }
+    private fun parseBookSource(o: JsonObject): BookSource? = SourceJson.parseBookSource(o)
 
-    private fun parseComicSource(o: JsonObject): ComicSource? {
-        return try {
-            val ruleSearch = o.obj("ruleSearch")
-            val ruleBookInfo = o.obj("ruleBookInfo")
-            val ruleToc = o.obj("ruleToc")
-            val ruleContent = o.obj("ruleContent")
-            ComicSource(
-                name = o.str("name") ?: o.str("bookSourceName") ?: o.str("sourceName") ?: return null,
-                baseUrl = normalizeBaseUrl(o.str("baseUrl") ?: o.str("bookSourceUrl") ?: o.str("sourceUrl") ?: ""),
-                enabled = o.get("enabled")?.asBoolean ?: true,
-                sortOrder = o.get("sortOrder")?.asInt ?: o.get("customOrder")?.asInt ?: 0,
-                searchUrl = normalizeSearchUrl(o.str("searchUrl") ?: ""),
-                searchListRule = sanitizeRule(o.str("searchListRule") ?: ruleSearch?.str("bookList") ?: ""),
-                searchNameRule = sanitizeRule(o.str("searchNameRule") ?: ruleSearch?.str("name") ?: ""),
-                searchAuthorRule = sanitizeRule(o.str("searchAuthorRule") ?: ruleSearch?.str("author") ?: ""),
-                searchCoverRule = sanitizeRule(o.str("searchCoverRule") ?: ruleSearch?.str("coverUrl") ?: ""),
-                searchUrlRule = sanitizeRule(o.str("searchUrlRule") ?: ruleSearch?.str("bookUrl") ?: ""),
-                searchStatusRule = sanitizeRule(o.str("searchStatusRule") ?: ruleSearch?.str("kind") ?: ""),
-                detailNameRule = sanitizeRule(o.str("detailNameRule") ?: ruleBookInfo?.str("name") ?: ""),
-                detailAuthorRule = sanitizeRule(o.str("detailAuthorRule") ?: ruleBookInfo?.str("author") ?: ""),
-                detailCoverRule = sanitizeRule(o.str("detailCoverRule") ?: ruleBookInfo?.str("coverUrl") ?: ""),
-                detailDescRule = sanitizeRule(o.str("detailDescRule") ?: ruleBookInfo?.str("intro") ?: ""),
-                chapterListRule = sanitizeRule(o.str("chapterListRule") ?: ruleToc?.str("chapterList") ?: ""),
-                chapterNameRule = sanitizeRule(o.str("chapterNameRule") ?: ruleToc?.str("chapterName") ?: ""),
-                chapterUrlRule = sanitizeRule(o.str("chapterUrlRule") ?: ruleToc?.str("chapterUrl") ?: ""),
-                imageListRule = sanitizeRule(
-                    o.str("imageListRule") ?: ruleContent?.str("imageList") ?: ruleContent?.str("content") ?: ""
-                ),
-                imageUrlRule = sanitizeRule(o.str("imageUrlRule") ?: ruleContent?.str("imageUrl") ?: ""),
-                searchEncoding = o.str("searchEncoding") ?: o.str("charset") ?: "UTF-8",
-                isBuiltIn = false
-            )
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    /** Strip Legado POST/options suffix: url,{"method":"POST",...} */
-    private fun normalizeSearchUrl(raw: String): String {
-        val trimmed = raw.trim()
-        if (trimmed.isEmpty()) return ""
-        val optionIdx = trimmed.indexOf(",{")
-        val urlPart = if (optionIdx > 0) trimmed.substring(0, optionIdx).trim() else trimmed
-        return urlPart
-            .replace("{{key}}", "{{keyword}}")
-            .replace("{{searchKey}}", "{{keyword}}")
-    }
-
-    private fun normalizeBaseUrl(raw: String): String = raw.trim().trimEnd('/')
-
-    /**
-     * Drop unsupported JS rules; map Legado tag./class./id. CSS sugar.
-     * Keep ##replace chains for the parser.
-     */
-    private fun sanitizeRule(raw: String): String {
-        val rule = raw.trim()
-        if (rule.isEmpty()) return ""
-        if (rule.contains("@js", ignoreCase = true) || rule.contains("<js>", ignoreCase = true)) {
-            return ""
-        }
-        // Only transform the selector portion before first @ or ##
-        val splitAt = rule.indexOf('@').let { if (it < 0) Int.MAX_VALUE else it }
-        val splitHash = rule.indexOf("##").let { if (it < 0) Int.MAX_VALUE else it }
-        val cut = minOf(splitAt, splitHash)
-        if (cut == Int.MAX_VALUE) {
-            return normalizeLegadoCss(rule)
-        }
-        val selector = normalizeLegadoCss(rule.substring(0, cut))
-        return selector + rule.substring(cut)
-    }
-
-    private fun normalizeLegadoCss(selector: String): String {
-        return selector
-            .replace(Regex("""\btag\."""), "")
-            .replace(Regex("""\bclass\."""), ".")
-            .replace(Regex("""\bid\."""), "#")
-            .trim()
-    }
-
-    private fun JsonObject.str(key: String): String? {
-        return try {
-            val el = this.get(key)
-            if (el == null || el.isJsonNull) null
-            else if (el.isJsonPrimitive) el.asString
-            else el.toString()
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun JsonObject.obj(key: String): JsonObject? {
-        val el = this.get(key) ?: return null
-        return if (el.isJsonObject) el.asJsonObject else null
-    }
+    private fun parseComicSource(o: JsonObject): ComicSource? = SourceJson.parseComicSource(o)
 
     private fun parseSourceObjects(text: String): List<JsonObject> {
         val trimmed = text.trim().removePrefix("\uFEFF")

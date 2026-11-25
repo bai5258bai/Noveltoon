@@ -1,69 +1,82 @@
 package com.noveltoon.app.data
 
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import com.noveltoon.app.data.entity.BookSource
-import com.noveltoon.app.data.entity.ComicSource
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
+data class SourceInitReport(
+    val bookCount: Int,
+    val comicCount: Int,
+    val error: String? = null
+)
+
 object SourceInitializer {
-    private val gson = Gson()
-
-    suspend fun initIfNeeded(context: Context) = withContext(Dispatchers.IO) {
+    suspend fun initIfNeeded(context: Context): SourceInitReport = withContext(Dispatchers.IO) {
         val db = AppDatabase.getInstance(context)
-
-        // Load built-in book sources
-        try {
-            val bookSources = loadBuiltInBookSources(context)
-            val existing = db.bookSourceDao().getAllSources().first()
-            val existingBuiltIn = existing.filter { it.isBuiltIn }
-            val userAdded = existing.filter { !it.isBuiltIn }
-
-            // Remove old built-ins and replace with the bundled set (preserve user-added)
-            existingBuiltIn.forEach { db.bookSourceDao().delete(it) }
-
-            // Preserve enabled state from existing if a name match exists
-            val preservedStates = existingBuiltIn.associate { it.name to it.enabled }
-            val toInsert = bookSources.map {
-                val enabled = preservedStates[it.name] ?: it.enabled
-                it.copy(id = 0, enabled = enabled, isBuiltIn = true)
-            }
-            db.bookSourceDao().insertAll(toInsert)
-            // Keep user added intact
-            userAdded.forEach { /* no-op */ }
-        } catch (_: Exception) {}
-
-        // Load built-in comic sources
-        try {
-            val comicSources = loadBuiltInComicSources(context)
-            val existing = db.comicSourceDao().getAllSources().first()
-            val existingBuiltIn = existing.filter { it.isBuiltIn }
-
-            existingBuiltIn.forEach { db.comicSourceDao().delete(it) }
-
-            val preservedStates = existingBuiltIn.associate { it.name to it.enabled }
-            val toInsert = comicSources.map {
-                val enabled = preservedStates[it.name] ?: it.enabled
-                it.copy(id = 0, enabled = enabled, isBuiltIn = true)
-            }
-            db.comicSourceDao().insertAll(toInsert)
-        } catch (_: Exception) {}
+        val book = replaceBuiltInBooks(context, db)
+        val comic = replaceBuiltInComics(context, db)
+        val error = listOfNotNull(book.error, comic.error).joinToString("\n").ifBlank { null }
+        SourceInitReport(
+            bookCount = book.count,
+            comicCount = comic.count,
+            error = error
+        )
     }
 
-    fun loadBuiltInBookSources(context: Context): List<BookSource> {
-        val json = context.assets.open("default_book_sources.json")
-            .bufferedReader().use { it.readText() }
-        val type = object : TypeToken<List<BookSource>>() {}.type
-        return gson.fromJson(json, type)
+    private data class ReplaceResult(val count: Int, val error: String?)
+
+    private suspend fun replaceBuiltInBooks(context: Context, db: AppDatabase): ReplaceResult {
+        val parsed = try {
+            val json = context.assets.open("default_book_sources.json").bufferedReader().use { it.readText() }
+            SourceJson.parseBookSources(json)
+        } catch (e: Exception) {
+            return ReplaceResult(0, "内置书源：${e.message ?: e.javaClass.simpleName}")
+        }
+        return try {
+            val existingBuiltIn = db.bookSourceDao().getAllSourcesOnce().filter { it.isBuiltIn }
+            val preserved = existingBuiltIn.associate { it.name to it.enabled }
+            val toInsert = parsed.map { source ->
+                source.copy(
+                    id = 0,
+                    enabled = preserved[source.name] ?: source.enabled,
+                    isBuiltIn = true
+                )
+            }
+            db.withTransaction {
+                existingBuiltIn.forEach { db.bookSourceDao().delete(it) }
+                db.bookSourceDao().insertAll(toInsert)
+            }
+            ReplaceResult(toInsert.size, null)
+        } catch (e: Exception) {
+            ReplaceResult(0, "内置书源写入失败：${e.message ?: e.javaClass.simpleName}")
+        }
     }
 
-    fun loadBuiltInComicSources(context: Context): List<ComicSource> {
-        val json = context.assets.open("default_comic_sources.json")
-            .bufferedReader().use { it.readText() }
-        val type = object : TypeToken<List<ComicSource>>() {}.type
-        return gson.fromJson(json, type)
+    private suspend fun replaceBuiltInComics(context: Context, db: AppDatabase): ReplaceResult {
+        val parsed = try {
+            val json = context.assets.open("default_comic_sources.json").bufferedReader().use { it.readText() }
+            SourceJson.parseComicSources(json)
+        } catch (e: Exception) {
+            return ReplaceResult(0, "内置图源：${e.message ?: e.javaClass.simpleName}")
+        }
+        return try {
+            val existingBuiltIn = db.comicSourceDao().getAllSourcesOnce().filter { it.isBuiltIn }
+            val preserved = existingBuiltIn.associate { it.name to it.enabled }
+            val toInsert = parsed.map { source ->
+                source.copy(
+                    id = 0,
+                    enabled = preserved[source.name] ?: source.enabled,
+                    isBuiltIn = true
+                )
+            }
+            db.withTransaction {
+                existingBuiltIn.forEach { db.comicSourceDao().delete(it) }
+                db.comicSourceDao().insertAll(toInsert)
+            }
+            ReplaceResult(toInsert.size, null)
+        } catch (e: Exception) {
+            ReplaceResult(0, "内置图源写入失败：${e.message ?: e.javaClass.simpleName}")
+        }
     }
 }
