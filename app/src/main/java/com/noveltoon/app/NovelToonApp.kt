@@ -5,21 +5,27 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.noveltoon.app.data.SourceInitReport
 import com.noveltoon.app.data.SourceInitializer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 
 class NovelToonApp : Application(), ImageLoaderFactory {
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _sourceInitReport = MutableStateFlow<SourceInitReport?>(null)
+    val sourceInitReport: StateFlow<SourceInitReport?> = _sourceInitReport.asStateFlow()
 
     override fun onCreate() {
         super.onCreate()
         applicationScope.launch {
-            SourceInitializer.initIfNeeded(this@NovelToonApp)
+            _sourceInitReport.value = SourceInitializer.initIfNeeded(this@NovelToonApp)
         }
     }
 

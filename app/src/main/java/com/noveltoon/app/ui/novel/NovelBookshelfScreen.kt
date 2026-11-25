@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.noveltoon.app.NovelToonApp
 import com.noveltoon.app.R
 import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.ui.theme.BrandBackground
@@ -61,6 +62,7 @@ fun NovelBookshelfScreen(
     var snackbarText by remember { mutableStateOf("") }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val sourceInit by (context.applicationContext as NovelToonApp).sourceInitReport.collectAsState()
 
     LaunchedEffect(importState) {
         when (importState) {
@@ -133,12 +135,22 @@ fun NovelBookshelfScreen(
             )
         }
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(gradientBrush)
                 .padding(padding)
         ) {
+            val initError = sourceInit?.error
+            if (!initError.isNullOrBlank()) {
+                Text(
+                    text = stringResource(R.string.source_init_failed, initError),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
             if (importState == "loading") {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -169,6 +181,7 @@ fun NovelBookshelfScreen(
                         )
                     }
                 }
+            }
             }
         }
     }

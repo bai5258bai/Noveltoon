@@ -72,6 +72,7 @@ fun NovelReaderScreen(
     val content by viewModel.chapterContent.collectAsState()
     val isLoading by viewModel.isLoadingContent.collectAsState()
     val contentLoadError by viewModel.contentLoadError.collectAsState()
+    val contentErrorText by viewModel.contentErrorText.collectAsState()
     val sources by viewModel.bookSources.collectAsState()
     val availableSources by viewModel.availableSources.collectAsState()
     val isFindingSources by viewModel.isFindingSources.collectAsState()
@@ -158,7 +159,7 @@ fun NovelReaderScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        stringResource(R.string.content_load_failed),
+                        contentErrorText.ifBlank { stringResource(R.string.content_load_failed) },
                         color = textColor.copy(alpha = 0.6f),
                         style = MaterialTheme.typography.bodyMedium
                     )

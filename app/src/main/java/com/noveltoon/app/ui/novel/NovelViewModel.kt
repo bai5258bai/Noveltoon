@@ -8,8 +8,12 @@ import com.noveltoon.app.data.dao.BookSourceDao
 import com.noveltoon.app.data.entity.BookSource
 import com.noveltoon.app.data.entity.Novel
 import com.noveltoon.app.data.entity.NovelChapter
+import com.noveltoon.app.R
+import com.noveltoon.app.data.parser.NovelAccess
+import com.noveltoon.app.data.parser.NovelAccessKind
 import com.noveltoon.app.data.parser.SearchResult
 import com.noveltoon.app.data.repository.NovelRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -53,16 +57,31 @@ class NovelViewModel(
     private val _contentLoadError = MutableStateFlow(false)
     val contentLoadError: StateFlow<Boolean> = _contentLoadError.asStateFlow()
 
+    private val _searchMessage = MutableStateFlow("")
+    val searchMessage: StateFlow<String> = _searchMessage.asStateFlow()
+
+    private val _contentErrorText = MutableStateFlow("")
+    val contentErrorText: StateFlow<String> = _contentErrorText.asStateFlow()
+
     fun search(keyword: String) {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _isSearching.value = true
             _searchResults.value = emptyList()
+            _searchMessage.value = ""
             try {
-                repository.search(keyword) { partial ->
+                val outcome = repository.search(keyword) { partial ->
                     _searchResults.value = partial.distinctBy { it.sourceName + "|" + it.url + "|" + it.title }
                 }
-            } catch (_: Exception) {}
+                if (outcome.kind != NovelAccessKind.SUCCESS) {
+                    _searchMessage.value = searchMessageFor(outcome)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _searchMessage.value = getApplication<android.app.Application>()
+                    .getString(R.string.search_network_error, e.message ?: "")
+            }
             _isSearching.value = false
         }
     }
@@ -86,8 +105,18 @@ class NovelViewModel(
 
     fun loadNovel(novelId: Long) {
         viewModelScope.launch {
-            _currentNovel.value = repository.getNovelById(novelId)
-            _chapters.value = repository.getChaptersList(novelId)
+            val novel = repository.getNovelById(novelId)
+            _currentNovel.value = novel
+            var list = repository.getChaptersList(novelId)
+            if (list.isEmpty() && novel != null && !novel.isLocal) {
+                val refreshed = repository.refreshChapters(novelId)
+                list = repository.getChaptersList(novelId)
+                if (list.isEmpty()) {
+                    _contentLoadError.value = true
+                    _contentErrorText.value = contentMessageFor(refreshed.kind, refreshed.detail)
+                }
+            }
+            _chapters.value = list
         }
     }
 
@@ -95,20 +124,28 @@ class NovelViewModel(
         viewModelScope.launch {
             _isLoadingContent.value = true
             _contentLoadError.value = false
+            _contentErrorText.value = ""
             try {
                 val content = repository.loadChapterContent(novelId, chapterIndex)
-                _chapterContent.value = content
-                if (content.isBlank()) {
+                if (content.kind != NovelAccessKind.SUCCESS) {
+                    _chapterContent.value = ""
                     _contentLoadError.value = true
+                    _contentErrorText.value = contentMessageFor(content.kind, content.detail)
                 } else {
+                    _chapterContent.value = content.value
+                    _chapters.value = repository.getChaptersList(novelId)
                     val chapter = _chapters.value.getOrNull(chapterIndex)
                     if (chapter != null) {
                         repository.updateReadProgress(novelId, chapterIndex, 0, chapter.title)
                         _currentNovel.value = repository.getNovelById(novelId)
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 _contentLoadError.value = true
+                _contentErrorText.value = getApplication<android.app.Application>()
+                    .getString(R.string.content_network_error, e.message ?: "")
             }
             _isLoadingContent.value = false
         }
@@ -123,8 +160,36 @@ class NovelViewModel(
 
     fun refreshChapters(novelId: Long) {
         viewModelScope.launch {
-            repository.refreshChapters(novelId)
+            val refreshed = repository.refreshChapters(novelId)
             _chapters.value = repository.getChaptersList(novelId)
+            if (refreshed.kind != NovelAccessKind.SUCCESS && _chapters.value.isEmpty()) {
+                _contentLoadError.value = true
+                _contentErrorText.value = contentMessageFor(refreshed.kind, refreshed.detail)
+            }
+        }
+    }
+
+    private fun searchMessageFor(outcome: NovelAccess<List<SearchResult>>): String {
+        val app = getApplication<android.app.Application>()
+        val detail = outcome.detail.ifBlank { app.getString(R.string.unknown_reason) }
+        return when (outcome.kind) {
+            NovelAccessKind.NO_RESULT -> app.getString(R.string.search_no_result)
+            NovelAccessKind.RULE_ERROR -> app.getString(R.string.search_rule_error, detail)
+            NovelAccessKind.NETWORK_ERROR -> app.getString(R.string.search_network_error, detail)
+            NovelAccessKind.NO_SOURCE -> app.getString(R.string.search_no_source)
+            NovelAccessKind.SUCCESS -> ""
+        }
+    }
+
+    private fun contentMessageFor(kind: NovelAccessKind, detail: String): String {
+        val app = getApplication<android.app.Application>()
+        val text = detail.ifBlank { app.getString(R.string.unknown_reason) }
+        return when (kind) {
+            NovelAccessKind.NO_RESULT -> app.getString(R.string.content_no_result)
+            NovelAccessKind.RULE_ERROR -> app.getString(R.string.content_rule_error, text)
+            NovelAccessKind.NETWORK_ERROR -> app.getString(R.string.content_network_error, text)
+            NovelAccessKind.NO_SOURCE -> app.getString(R.string.search_no_source)
+            NovelAccessKind.SUCCESS -> ""
         }
     }
 

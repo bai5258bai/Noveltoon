@@ -145,4 +145,13 @@
     <string name="source_none_found">No other sources found for this title</string>
     <string name="content_load_failed">Content failed to load</string>
     <string name="retry">Retry</string>
+    <string name="source_init_failed">Built-in sources were not loaded: %s</string>
+    <string name="search_no_source">No book source is enabled</string>
+    <string name="search_no_result">No results</string>
+    <string name="search_rule_error">Source rule failed: %s</string>
+    <string name="search_network_error">Network failed: %s</string>
+    <string name="content_no_result">This chapter has no text</string>
+    <string name="content_rule_error">Catalog or content rule failed: %s</string>
+    <string name="content_network_error">Network failed: %s</string>
+    <string name="unknown_reason">unknown</string>
 </resources>

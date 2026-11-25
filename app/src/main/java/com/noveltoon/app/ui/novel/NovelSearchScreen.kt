@@ -36,6 +36,7 @@ fun NovelSearchScreen(
     var searchText by remember { mutableStateOf("") }
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
+    val searchMessage by viewModel.searchMessage.collectAsState()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0),
@@ -91,6 +92,14 @@ fun NovelSearchScreen(
             // Streaming: show linear progress while searching, results appear as they come in
             if (isSearching) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            if (searchMessage.isNotBlank() && searchResults.isEmpty() && !isSearching) {
+                Text(
+                    text = searchMessage,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
             if (isSearching && searchResults.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
